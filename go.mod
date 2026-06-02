@@ -3,7 +3,7 @@ module github.com/baidu/nettools
 go 1.26.0
 
 require (
-	github.com/google/gopacket v1.1.19
+	github.com/smallnest/goscapy v0.1.0
 	github.com/spf13/pflag v1.0.10
 	go.uber.org/ratelimit v0.3.1
 	golang.org/x/net v0.54.0

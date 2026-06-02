@@ -48,7 +48,7 @@ func testClient(t *testing.T) *Client {
 }
 
 // makeTestUDPPacket constructs a raw UDP packet (header + payload) suitable
-// for gopacket's LayerTypeUDP decoder.
+// for goscapy's UDP dissector.
 func makeTestUDPPacket(srcPort, dstPort uint16, payload []byte) []byte {
 	udpLen := 8 + len(payload)
 	pkt := make([]byte, udpLen)
@@ -566,7 +566,7 @@ func TestHandlePacketBitflipSuppressedStillRecords(t *testing.T) {
 func TestHandlePacketNoUDPLayer(t *testing.T) {
 	c := testClient(t)
 
-	// Send raw garbage that gopacket can't parse as UDP
+	// Send raw garbage that goscapy can't parse as UDP
 	remote := &net.IPAddr{IP: net.ParseIP("127.0.0.1")}
 	c.handlePacket(remote, []byte{0x01, 0x02, 0x03})
 }

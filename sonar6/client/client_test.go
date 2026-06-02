@@ -708,7 +708,7 @@ func TestHandlePacketShortPayload(t *testing.T) {
 func TestHandlePacketNoUDPLayer(t *testing.T) {
 	c := testClient(t)
 
-	// Send raw garbage that gopacket can't parse
+	// Send raw garbage that goscapy can't parse
 	remote := &net.IPAddr{IP: net.ParseIP("::1")}
 	c.handlePacket(remote, []byte{0x01, 0x02, 0x03})
 }

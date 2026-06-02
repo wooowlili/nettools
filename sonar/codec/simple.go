@@ -3,34 +3,19 @@ package codec
 import (
 	"net"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/smallnest/goscapy/pkg/goscapy"
+	"github.com/smallnest/goscapy/pkg/layers"
 )
 
-// EncodeUDPPacket constructs a raw UDP packet (with IPv4 header) carrying
-// the given payload. It computes UDP checksums and sets the specified
-// TOS and TTL values on the IP header.
+// EncodeUDPPacket constructs a raw UDP packet (with IPv4 pseudo-header checksum)
+// carrying the given payload. It returns only the UDP header + payload bytes;
+// the actual IPv4 header is handled by the raw socket at send time.
 func EncodeUDPPacket(localIP, remoteIP net.IP, localPort, remotePort uint16, tos uint8, ttl int, payload []byte) ([]byte, error) {
-	ip := &layers.IPv4{
-		Version:  4,
-		TTL:      uint8(ttl),
-		SrcIP:    localIP,
-		DstIP:    remoteIP,
-		TOS:      tos,
-		Protocol: layers.IPProtocolUDP,
-	}
-	udp := &layers.UDP{
-		SrcPort: layers.UDPPort(localPort),
-		DstPort: layers.UDPPort(remotePort),
-	}
-	_ = udp.SetNetworkLayerForChecksum(ip)
-
-	buf := gopacket.NewSerializeBuffer()
-	opts := gopacket.SerializeOptions{
-		ComputeChecksums: true,
-		FixLengths:       true,
-	}
-
-	err := gopacket.SerializeLayers(buf, opts, udp, gopacket.Payload(payload))
-	return buf.Bytes(), err
+	pb := goscapy.NewIP().
+		SrcIP(localIP.String()).
+		DstIP(remoteIP.String()).
+		TTL(uint8(ttl)).
+		Over(goscapy.NewUDP().SrcPort(localPort).DstPort(remotePort))
+	pb.Packet().Push(layers.NewRawWith(payload))
+	return pb.Packet().BuildFrom(1)
 }

@@ -12,8 +12,8 @@ import (
 	"net"
 
 	"github.com/baidu/nettools/sonar/codec"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/smallnest/goscapy/pkg/goscapy"
+	"github.com/smallnest/goscapy/pkg/layers"
 )
 
 // Encode, Decode, IsValid, and ComplementaryBytes are re-exported from
@@ -38,28 +38,14 @@ func EncodeUDPPacket(localIP, remoteIP net.IP, localPort, remotePort uint16, tra
 	if len(localIP) != net.IPv6len || len(remoteIP) != net.IPv6len {
 		return nil, fmt.Errorf("IPv6 addresses must be %d bytes, got %d and %d", net.IPv6len, len(localIP), len(remoteIP))
 	}
-	ip := &layers.IPv6{
-		Version:      6,
-		TrafficClass: trafficClass,
-		HopLimit:     uint8(hopLimit),
-		SrcIP:        localIP,
-		DstIP:        remoteIP,
-		NextHeader:   layers.IPProtocolUDP,
-	}
-	udp := &layers.UDP{
-		SrcPort: layers.UDPPort(localPort),
-		DstPort: layers.UDPPort(remotePort),
-	}
-	_ = udp.SetNetworkLayerForChecksum(ip)
-
-	buf := gopacket.NewSerializeBuffer()
-	opts := gopacket.SerializeOptions{
-		ComputeChecksums: true,
-		FixLengths:       true,
-	}
-
-	err := gopacket.SerializeLayers(buf, opts, udp, gopacket.Payload(payload))
-	return buf.Bytes(), err
+	pb := goscapy.NewIPv6().
+		SrcIP(localIP.String()).
+		DstIP(remoteIP.String()).
+		TC(trafficClass).
+		HLim(uint8(hopLimit)).
+		Over(goscapy.NewUDP().SrcPort(localPort).DstPort(remotePort))
+	pb.Packet().Push(layers.NewRawWith(payload))
+	return pb.Packet().BuildFrom(1)
 }
 
 // ipv6HeaderLen is the fixed size of an IPv6 header (RFC 8200 Section 3).

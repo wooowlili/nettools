@@ -14,8 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/smallnest/goscapy/pkg/packet"
 	"golang.org/x/net/bpf"
 	"golang.org/x/net/ipv6"
 
@@ -387,16 +386,19 @@ var startupTime = time.Now()
 // (the IPv6 fixed header is stripped by the kernel). We parse directly
 // from LayerTypeUDP.
 func (c *Client) handlePacket(remote net.Addr, pkt []byte) {
-	packet := gopacket.NewPacket(pkt, layers.LayerTypeUDP, gopacket.NoCopy)
-	udpLayer := packet.Layer(layers.LayerTypeUDP)
-	if udpLayer == nil {
+	parsed, err := packet.DissectByProto(pkt, "UDP")
+	if err != nil {
 		return
 	}
-	app := packet.ApplicationLayer()
-	if app == nil {
+	rawLayer := parsed.GetLayer("Raw")
+	if rawLayer == nil {
 		return
 	}
-	payload := app.Payload()
+	loadVal, _ := rawLayer.Get("load")
+	payload, _ := loadVal.([]byte)
+	if len(payload) == 0 {
+		return
+	}
 
 	if !codec.IsValid(payload) {
 		return

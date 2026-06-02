@@ -20,8 +20,7 @@ import (
 	"github.com/baidu/nettools/sonar/config"
 	"github.com/baidu/nettools/stat"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/smallnest/goscapy/pkg/packet"
 	"go.uber.org/ratelimit"
 )
 
@@ -332,16 +331,19 @@ var startupTime = time.Now()
 // salt differs from the expected pattern (selected by seq%4), it invokes
 // detectBitflip for detailed byte-level logging.
 func (c *Client) handlePacket(remote net.Addr, pkt []byte) {
-	packet := gopacket.NewPacket(pkt, layers.LayerTypeUDP, gopacket.NoCopy)
-	udpLayer := packet.Layer(layers.LayerTypeUDP)
-	if udpLayer == nil {
+	parsed, err := packet.DissectByProto(pkt, "UDP")
+	if err != nil {
 		return
 	}
-	app := packet.ApplicationLayer()
-	if app == nil {
+	rawLayer := parsed.GetLayer("Raw")
+	if rawLayer == nil {
 		return
 	}
-	payload := app.Payload()
+	loadVal, _ := rawLayer.Get("load")
+	payload, _ := loadVal.([]byte)
+	if len(payload) == 0 {
+		return
+	}
 
 	if !codec.IsValid(payload) {
 		return
