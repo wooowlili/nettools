@@ -225,7 +225,7 @@ func (c *Client) serveWrite(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	defer c.closeReadConns()
 
 	setupRawConn(conn, c.conf.TOS, emptyBPF())
@@ -322,7 +322,7 @@ func (c *Client) reachedLimit(ctx context.Context) error {
 // closeReadConns closes all read-side packet connections.
 func (c *Client) closeReadConns() {
 	for _, conn := range c.rconns {
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -357,7 +357,7 @@ func (c *Client) serveRead() error {
 // readLoop reads packets from a connection and dispatches them to
 // handlePacket. It exits after 10 consecutive errors.
 func (c *Client) readLoop(conn net.PacketConn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	buf := make([]byte, 10240)
 	errCount := 0
 

@@ -319,7 +319,7 @@ func TestSetupRawConnWithUDPConn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Should not panic with a UDP conn
 	setupRawConn(conn, 0, emptyBPF())
@@ -681,7 +681,7 @@ func TestReadLoopClosedConn(t *testing.T) {
 	c := testClient(t)
 
 	mc := &mockPacketConn{}
-	mc.Close()
+	_ = mc.Close()
 
 	done := make(chan struct{})
 	go func() {

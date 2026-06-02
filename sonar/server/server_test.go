@@ -40,7 +40,7 @@ func findFreePort(t *testing.T) int {
 		t.Fatalf("listen: %v", err)
 	}
 	port := l.LocalAddr().(*net.UDPAddr).Port
-	l.Close()
+	_ = l.Close()
 	return port
 }
 
@@ -136,7 +136,7 @@ func TestServerEcho(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	seq := uint64(42)
 	ts := time.Now().UnixNano()
@@ -187,7 +187,7 @@ func TestServerEchoAllSaltPatterns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	for i := 0; i < 4; i++ {
 		seq := uint64(i)
@@ -224,7 +224,7 @@ func TestServerInvalidPacket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Send garbage (no magic flag, too short)
 	if _, err := conn.Write([]byte("garbage")); err != nil {
@@ -251,7 +251,7 @@ func TestServerShortPacket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Packet with correct magic flag but too short for full header
 	payload := append([]byte("CHAOOAHC"), make([]byte, 5)...)
@@ -279,7 +279,7 @@ func TestServerBitflipEcho(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Create a valid packet then corrupt the salt region
 	seq := uint64(1)
@@ -318,7 +318,7 @@ func TestServerRunCancel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	seq := uint64(1)
 	ts := time.Now().UnixNano()

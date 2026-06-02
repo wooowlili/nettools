@@ -414,7 +414,7 @@ func TestSetupRawConnWithUDPConn(t *testing.T) {
 	if err != nil {
 		t.Skipf("cannot create UDP socket: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Should not panic or error when given a UDPConn
 	setupRawConn(conn, 128, nil)
@@ -895,7 +895,7 @@ func TestReadLoopClosedConn(t *testing.T) {
 	c := testClient(t)
 
 	mc := &mockPacketConn{}
-	mc.Close()
+	_ = mc.Close()
 
 	done := make(chan struct{})
 	go func() {
