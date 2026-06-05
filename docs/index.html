@@ -1750,7 +1750,7 @@
                     <div class="stat-label">内部部署节点</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">2</div>
+                    <div class="stat-value">3</div>
                     <div class="stat-label">已开源工具</div>
                 </div>
                 <div class="stat-item">
@@ -1770,6 +1770,72 @@
                 <span>工具集：</span>
                 <a href="baize.html">baize（白泽）</a>
                 <a href="bitflip.html">bitflip / bitflip6</a>
+                <a href="lidar.html">lidar（激光雷达）</a>
+            </div>
+
+            <!-- lidar -->
+            <div class="section" id="lidar">
+                <div class="section-header">
+                    <div class="section-dot" style="background: #2D8E9E;"></div>
+                    <h2>lidar（激光雷达）— TCP SYN 网络可达性探测</h2>
+                    <span class="badge badge-new">最新发布</span>
+                    <a href="lidar.html" class="guide-link">使用指南 &rarr;</a>
+                </div>
+
+                <p>
+                    lidar
+                    是一个基于 TCP SYN 的网络可达性探测工具。通过发送原始 SYN
+                    报文并分析响应，判断目标端口是开放、关闭还是不可达。无需在远端部署任何软件。
+                </p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h4>零部署探测</h4>
+                        <p>
+                            无需在目标安装任何软件。只需目标 IP
+                            和端口，利用内核 TCP
+                            协议栈自动响应 SYN
+                            报文即可判断可达性。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔀</div>
+                        <h4>精准分类</h4>
+                        <p>
+                            SYN-ACK = 端口开放，RST =
+                            端口关闭/拒绝，Timeout =
+                            不可达/丢包。区分网络层和应用层故障。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📡</div>
+                        <h4>Raw Socket + BPF</h4>
+                        <p>
+                            原始套接字构造 TCP SYN，macOS
+                            通过 BPF
+                            设备接收响应。绕过内核
+                            TCP 栈，不影响系统连接。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>多目标并行</h4>
+                        <p>
+                            支持逗号分隔多 IP，统一速率限制下轮询探测。每个目标独立统计，适合批量场景。
+                        </p>
+                    </div>
+                </div>
+
+                <h3>典型场景</h3>
+                <div class="scenario-tags">
+                    <span class="scenario-tag">机房内网络探测</span>
+                    <span class="scenario-tag">海外机房可达性监测</span>
+                    <span class="scenario-tag">LCC 机房探测</span>
+                    <span class="scenario-tag">防火墙策略验证</span>
+                    <span class="scenario-tag">网络割接前后对比</span>
+                    <span class="scenario-tag">上线前连通性检查</span>
+                </div>
             </div>
 
             <!-- baize -->
@@ -1937,7 +2003,7 @@ cd nettools && make build</span>
             <div class="section" id="compare">
                 <div class="section-header">
                     <div class="section-dot slate"></div>
-                    <h2>baize vs bitflip：怎么选？</h2>
+                    <h2>工具对比：怎么选？</h2>
                 </div>
 
                 <table>
@@ -1945,37 +2011,42 @@ cd nettools && make build</span>
                         <th></th>
                         <th>bitflip / bitflip6</th>
                         <th>baize</th>
+                        <th>lidar</th>
+                    </tr>
+                    <tr>
+                        <td>探测协议</td>
+                        <td>UDP</td>
+                        <td>UDP</td>
+                        <td>TCP SYN</td>
+                    </tr>
+                    <tr>
+                        <td>需要服务端</td>
+                        <td>需要</td>
+                        <td>需要</td>
+                        <td>不需要</td>
+                    </tr>
+                    <tr>
+                        <td>探测内容</td>
+                        <td>丢包 + bitflip</td>
+                        <td>丢包 + bitflip</td>
+                        <td>可达性（SYN-ACK/RST/Timeout）</td>
                     </tr>
                     <tr>
                         <td>配置方式</td>
                         <td>命令行参数</td>
                         <td>JSON 配置文件</td>
-                    </tr>
-                    <tr>
-                        <td>运行模式</td>
-                        <td>单角色</td>
-                        <td>单进程双角色</td>
+                        <td>命令行参数</td>
                     </tr>
                     <tr>
                         <td>适用场景</td>
                         <td>临时排查、快速诊断</td>
                         <td>长期部署、持续监控</td>
-                    </tr>
-                    <tr>
-                        <td>日志管理</td>
-                        <td>stdout / stderr</td>
-                        <td>按天轮转 + 自动清理</td>
-                    </tr>
-                    <tr>
-                        <td>运维集成</td>
-                        <td>手动运行</td>
-                        <td>配合配置管理系统自动化</td>
+                        <td>快速可达性探测</td>
                     </tr>
                 </table>
 
                 <div class="tip">
-                    <strong>简单来说：</strong>排查问题用 bitflip，上线监控用
-                    baize。底层引擎是同一套，选哪个只看部署方式。
+                    <strong>简单来说：</strong>UDP 质量监控用 bitflip/baize，快速可达性探测用 lidar。bitflip 适合临时排查，baize 适合长期部署，lidar 适合无需服务端的场景。
                 </div>
             </div>
 

@@ -12,6 +12,7 @@ A suite of network diagnostic tools developed by Baidu's physical network black-
 - **bitflip**: Detects packet loss and bit-flip errors in large-scale physical networks.
 - **bitflip6**: IPv6 variant of bitflip for IPv6 network diagnostics.
 - **baize**: Configuration-driven continuous network quality monitoring tool for long-term deployment.
+- **lidar**: TCP SYN probing tool for network reachability detection — no server-side deployment required.
 
 > Produced by Baidu System Department
 
@@ -229,6 +230,80 @@ sudo ./baize -c /etc/baize/baize.json
 | `verbose` | bool | false | Print per-port loss details |
 
 See [baize usage guide](docs/baize-usage-guide.html) for more details.
+
+## lidar
+
+A TCP SYN probing tool for network reachability detection. It sends raw TCP SYN packets to target IPs and classifies responses as available (SYN-ACK), denied (RST), or unreachable (timeout). No server-side deployment needed — it leverages the target host's kernel TCP stack to respond to SYN packets.
+
+**How it works:** lidar constructs raw IP + TCP SYN packets via raw sockets, sends them to target IPs, and captures responses via BPF devices (macOS) or raw sockets (Linux). The kernel TCP stack does not process these packets, so existing TCP connections are unaffected.
+
+**Key features:**
+- **No server needed:** Only requires target IP + port. The target kernel automatically responds to SYN — no software installation required on the remote side.
+- **Precise classification:** Distinguishes SYN-ACK (port open), RST (port closed/rejected), and timeout (unreachable/packet loss).
+- **Source port rotation:** Automatically rotates source ports across a configurable range to cover multiple ECMP paths.
+- **Rate limiting:** Built-in token bucket rate limiter for precise probing frequency control.
+- **Multi-target:** Supports comma-separated target IPs with independent per-target statistics.
+
+### Quick Start
+
+**Build:**
+```bash
+go build -o lidar ./cmd/lidar/
+```
+
+**Run:**
+```bash
+# Probe a single target on port 80 (default 10 pps)
+sudo ./lidar -t 10.0.0.2 -p 80
+
+# Probe multiple targets
+sudo ./lidar -t 10.0.0.2,10.0.0.3,10.0.0.4 -p 22
+
+# High rate probing for 30 seconds
+sudo ./lidar -t 10.0.0.2 -p 80 --rate 100 -d 30s
+
+# Send exactly 1000 probes
+sudo ./lidar -t 10.0.0.2 -p 80 -n 1000
+
+# Verbose mode with per-port loss details
+sudo ./lidar -t 10.0.0.2 -p 80 -v
+```
+
+### Command-line Flags
+
+| Short | Long | Default | Description |
+|-------|------|---------|-------------|
+| `-t` | `--targets` | — | Target IP addresses, comma-separated (required) |
+| `-p` | `--port` | 22 | Target TCP port |
+| `-l` | `--local-addr` | auto | Source IP address |
+| | `--local-port` | 54321 | Source port base |
+| | `--local-port-count` | 100 | Number of source ports for rotation |
+| | `--rate` | 10 | Packets per second (pps) |
+| `-s` | `--span` | 1s | Stats reporting interval |
+| | `--delay` | 3s | Delay before first stats report |
+| `-n` | `--count` | 0 | Max packets to send (0 = unlimited) |
+| `-d` | `--duration` | 0 | Max send duration (0 = unlimited) |
+| `-i` | `--interface` | auto | Outgoing interface name |
+| `-v` | `--verbose` | false | Print per-port loss details |
+
+### Output
+
+```
+2026/06/05 21:37:14 [INFO] probing 1 target(s) on port 80 from 192.168.1.14 (rate: 10 pps)
+2026/06/05 21:37:14 [INFO] bound BPF to en0 (DLT=1)
+2026/06/05 21:37:17 [WARN] 21:37:14, [192.168.1.14 -> 74.48.173.243], sent: 10, received: 10 (SYN-ACK: 10, RST: 0), timeout: 0
+2026/06/05 21:37:18 [INFO] 21:37:15, [192.168.1.14 -> 74.48.173.243], sent: 10, received: 10 (SYN-ACK: 10, RST: 0), timeout: 0
+```
+
+| Field | Description |
+|-------|-------------|
+| `sent` | Total probe packets sent in this time window |
+| `received` | Total responses received |
+| `SYN-ACK` | SYN-ACK responses (target port open) |
+| `RST` | RST responses (target port closed/rejected) |
+| `timeout` | No response (unreachable/packet loss) |
+
+See [lidar usage guide](docs/lidar.html) for more details.
 
 ## Testing
 

@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lidar 使用指南</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #FAF9F6;
+      min-height: 100vh;
+      padding: 2.5rem 2rem;
+      color: #1a1a1a;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 2.5rem;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.375rem;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      background: #2D8E9E;
+      border-radius: 50%;
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    h1 {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #1a1a1a;
+    }
+
+    .subtitle {
+      color: #8B8680;
+      font-size: 0.8125rem;
+      margin-left: 1.625rem;
+      letter-spacing: 0.01em;
+    }
+
+    .diagram-desc {
+      color: #B0AAA4;
+      font-size: 0.6875rem;
+      margin-top: 0.5rem;
+      margin-left: 1.625rem;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 0.75rem;
+      margin-left: 1.625rem;
+      font-size: 0.75rem;
+      color: #2D8E9E;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover {
+      color: #D97757;
+    }
+
+    h2 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #E8E4DE;
+    }
+
+    h3 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    p {
+      color: #4A4540;
+      font-size: 0.8125rem;
+      line-height: 1.7;
+      margin-bottom: 0.75rem;
+    }
+
+    .section {
+      background: #FFFFFF;
+      border-radius: 12px;
+      border: 1px solid #E8E4DE;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .section-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .section-dot.terracotta { background: #D97757; }
+    .section-dot.sage { background: #5B8A72; }
+    .section-dot.slate { background: #6B7280; }
+    .section-dot.plum { background: #8B6F8A; }
+    .section-dot.rose { background: #C96464; }
+    .section-dot.teal { background: #2D8E9E; }
+
+    .section-title h3 {
+      margin: 0;
+      font-size: 0.875rem;
+    }
+
+    pre {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+      font-size: 0.75rem;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      color: #E8E4DE;
+    }
+
+    .inline-code {
+      background: #F5F3F0;
+      border: 1px solid #E8E4DE;
+      border-radius: 4px;
+      padding: 0.125rem 0.375rem;
+      font-size: 0.75rem;
+      color: #2D8E9E;
+    }
+
+    .comment { color: #6B7280; }
+    .flag { color: #D97757; }
+    .value { color: #2D8E9E; }
+    .key { color: #8B6F8A; }
+    .cmd { color: #E8E4DE; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+      margin: 0.75rem 0;
+    }
+
+    th {
+      background: #F7F6F4;
+      font-weight: 600;
+      text-align: left;
+      padding: 0.625rem 0.75rem;
+      color: #4A4540;
+      border-bottom: 1px solid #E8E4DE;
+    }
+
+    td {
+      padding: 0.5rem 0.75rem;
+      color: #4A4540;
+      border-bottom: 1px solid #F0EDE8;
+    }
+
+    tr:hover td {
+      background: #FDFCFB;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+
+    .badge-client {
+      background: #F0F8FA;
+      color: #2D8E9E;
+      border: 1px solid #2D8E9E;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border-radius: 10px;
+      border: 1px solid #E8E4DE;
+      padding: 1.125rem 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.625rem;
+    }
+
+    .card-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .card-dot.terracotta { background: #D97757; }
+    .card-dot.sage { background: #5B8A72; }
+    .card-dot.slate { background: #6B7280; }
+    .card-dot.plum { background: #8B6F8A; }
+    .card-dot.rose { background: #C96464; }
+    .card-dot.teal { background: #2D8E9E; }
+
+    .card h4 {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .card ul {
+      list-style: none;
+      color: #6B6560;
+      font-size: 0.75rem;
+      line-height: 1.7;
+    }
+
+    .card li {
+      margin-bottom: 0.25rem;
+    }
+
+    .note {
+      background: #FFF5F0;
+      border-left: 3px solid #D97757;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: #6B6560;
+      margin: 0.75rem 0;
+    }
+
+    .note strong {
+      color: #D97757;
+    }
+
+    .tip {
+      background: #F0F8FA;
+      border-left: 3px solid #2D8E9E;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: #6B6560;
+      margin: 0.75rem 0;
+    }
+
+    .tip strong {
+      color: #2D8E9E;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 2rem;
+      color: #B0AAA4;
+      font-size: 0.6875rem;
+      letter-spacing: 0.02em;
+    }
+
+    .toc {
+      background: #FDFCFB;
+      border: 1px solid #E8E4DE;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .toc h3 {
+      font-size: 0.8125rem;
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      color: #8B8680;
+    }
+
+    .toc ul {
+      list-style: none;
+      font-size: 0.75rem;
+    }
+
+    .toc li {
+      margin-bottom: 0.375rem;
+    }
+
+    .toc a {
+      color: #2D8E9E;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .toc a:hover {
+      color: #D97757;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>lidar 使用指南</h1>
+      </div>
+      <p class="subtitle">nettools · TCP SYN 网络可达性探测工具</p>
+      <p class="diagram-desc"><b>Usage Guide</b> — 涵盖原理、安装、命令行参数及典型使用场景。</p>
+      <a class="back-link" href="index.html">&larr; 返回首页</a>
+    </div>
+
+    <!-- TOC -->
+    <div class="toc">
+      <h3>目录</h3>
+      <ul>
+        <li><a href="#overview">1. 概述</a></li>
+        <li><a href="#principle">2. 工作原理</a></li>
+        <li><a href="#scenarios">3. 使用场景</a></li>
+        <li><a href="#comparison">4. 与 bitflip / baize 的区别</a></li>
+        <li><a href="#install">5. 安装</a></li>
+        <li><a href="#quickstart">6. 快速开始</a></li>
+        <li><a href="#params">7. 命令行参数详解</a></li>
+        <li><a href="#output">8. 输出解读</a></li>
+        <li><a href="#examples">9. 使用示例</a></li>
+        <li><a href="#faq">10. FAQ</a></li>
+      </ul>
+    </div>
+
+    <!-- Section 1: Overview -->
+    <div class="section" id="overview">
+      <div class="section-title">
+        <div class="section-dot teal"></div>
+        <h3>1. 概述</h3>
+      </div>
+      <p>
+        <span class="badge badge-client">Client</span>
+        lidar 是百度系统部物理网络黑盒监控团队开发的 <strong>TCP SYN 可达性探测工具</strong>。它通过发送原始 TCP SYN 报文并分析响应来判定目标主机和端口的网络状态，无需在远端部署任何服务端程序。
+      </p>
+      <p>
+        <strong>核心特性：</strong>
+      </p>
+      <ul style="color: #4A4540; font-size: 0.8125rem; line-height: 1.7; margin-bottom: 0.75rem; padding-left: 1.5rem;">
+        <li><strong>无需服务端：</strong>只需目标 IP 和端口，无需在远端安装任何软件。</li>
+        <li><strong>原始套接字：</strong>使用 raw socket 构造 TCP SYN 报文，绕过内核 TCP 协议栈。</li>
+        <li><strong>BPF 接收：</strong>在 macOS 上通过 BPF 设备接收响应，兼容 Darwin 内核限制。</li>
+        <li><strong>速率控制：</strong>内置令牌桶限速，精确控制探测频率。</li>
+        <li><strong>源端口轮转：</strong>自动轮转源端口，覆盖多条 ECMP 路径。</li>
+        <li><strong>实时统计：</strong>分桶聚合统计，按秒报告发送/接收/丢包/SYN-ACK/RST 数量。</li>
+      </ul>
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot teal"></div>
+            <h4>零部署</h4>
+          </div>
+          <ul>
+            <li>无需远端安装软件</li>
+            <li>只需目标 IP + 端口</li>
+            <li>任意 TCP 端口可探测</li>
+            <li>即时启动，即时出结果</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot plum"></div>
+            <h4>精准分类</h4>
+          </div>
+          <ul>
+            <li>SYN-ACK = 端口开放</li>
+            <li>RST = 端口关闭/拒绝</li>
+            <li>Timeout = 不可达/丢包</li>
+            <li>区分网络层和应用层故障</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot terracotta"></div>
+            <h4>多目标并行</h4>
+          </div>
+          <ul>
+            <li>支持逗号分隔多 IP</li>
+            <li>同一速率限制下轮询</li>
+            <li>每个目标独立统计</li>
+            <li>适合批量探测场景</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Principle -->
+    <div class="section" id="principle">
+      <div class="section-title">
+        <div class="section-dot plum"></div>
+        <h3>2. 工作原理</h3>
+      </div>
+      <p>lidar 基于 TCP 三次握手的前两步来判断网络可达性：</p>
+      <pre><code><span class="comment"># 正常流程（三次握手前两步）</span>
+<span class="cmd">Client                          Server</span>
+  <span class="value">|-- SYN (seq=N) ------------&gt;|</span>    <span class="comment"># lidar 发送 SYN</span>
+  <span class="value">|&lt;-- SYN-ACK (ack=N+1) ------|</span>    <span class="comment"># 端口开放 → 可达</span>
+
+<span class="comment"># 端口关闭</span>
+<span class="cmd">Client                          Server</span>
+  <span class="value">|-- SYN (seq=N) ------------&gt;|</span>    <span class="comment"># lidar 发送 SYN</span>
+  <span class="value">|&lt;-- RST --------------------|</span>    <span class="comment"># 端口关闭 → 拒绝</span>
+
+<span class="comment"># 不可达</span>
+<span class="cmd">Client                          Server</span>
+  <span class="value">|-- SYN (seq=N) ------------&gt;|</span>    <span class="comment"># lidar 发送 SYN</span>
+  <span class="value">|   (无响应)                  |</span>    <span class="comment"># 超时 → 不可达/丢包</span></code></pre>
+      <p>lidar 构造原始 IP + TCP SYN 报文，通过 raw socket 发送，并通过 BPF 设备（macOS）或 raw socket（Linux）接收响应。内核 TCP 协议栈不会处理这些报文，因此不会影响系统已有的 TCP 连接。</p>
+
+      <div class="note">
+        <strong>Note：</strong>在 macOS 上，raw socket（IPPROTO_TCP）无法接收 TCP 响应报文，因为内核 TCP 栈会优先处理。lidar 使用 BPF（/dev/bpf*）设备绕过此限制，直接从链路层捕获响应。
+      </div>
+    </div>
+
+    <!-- Section 3: Scenarios -->
+    <div class="section" id="scenarios">
+      <div class="section-title">
+        <div class="section-dot rose"></div>
+        <h3>3. 使用场景</h3>
+      </div>
+      <p>lidar 适用于以下网络可达性探测场景：</p>
+
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot teal"></div>
+            <h4>机房内网络探测</h4>
+          </div>
+          <ul>
+            <li>机房内部服务器间网络可达性验证</li>
+            <li>快速发现网络设备故障或配置错误</li>
+            <li>批量探测多个目标 IP</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot plum"></div>
+            <h4>海外机房探测</h4>
+          </div>
+          <ul>
+            <li>跨地域/跨国网络质量监测</li>
+            <li>高延迟链路丢包率评估</li>
+            <li>专线/公网路径质量对比</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot terracotta"></div>
+            <h4>LCC 机房探测</h4>
+          </div>
+          <ul>
+            <li>LCC 机房间链路连通性验证</li>
+            <li>机房间网络链路持续监测</li>
+            <li>网络割接前后质量对比</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot sage"></div>
+            <h4>故障排查</h4>
+          </div>
+          <ul>
+            <li>区分网络不可达与端口关闭</li>
+            <li>定位丢包发生在哪个网络段</li>
+            <li>配合 verbose 模式定位丢包端口</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot rose"></div>
+            <h4>防火墙验证</h4>
+          </div>
+          <ul>
+            <li>验证防火墙规则是否生效</li>
+            <li>区分 DROP（timeout）和 REJECT（RST）</li>
+            <li>多端口探测验证端口策略</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot slate"></div>
+            <h4>上线前验证</h4>
+          </div>
+          <ul>
+            <li>新服务器上线前网络可达性检查</li>
+            <li>服务端口是否正常监听</li>
+            <li>批量验证一批新机器的连通性</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Comparison -->
+    <div class="section" id="comparison">
+      <div class="section-title">
+        <div class="section-dot slate"></div>
+        <h3>4. 与 bitflip / baize 的区别</h3>
+      </div>
+      <p>nettools 工具集内的三个工具各有侧重：</p>
+      <table>
+        <tr><th>特性</th><th>bitflip</th><th>baize</th><th>lidar</th></tr>
+        <tr><td>探测协议</td><td>UDP</td><td>UDP</td><td>TCP SYN</td></tr>
+        <tr><td>是否需要服务端</td><td>需要（bitflip server）</td><td>需要（baize server）</td><td>不需要</td></tr>
+        <tr><td>探测内容</td><td>丢包 + bitflip</td><td>丢包 + bitflip</td><td>可达性（SYN-ACK/RST/Timeout）</td></tr>
+        <tr><td>配置方式</td><td>命令行参数</td><td>JSON 配置文件</td><td>命令行参数</td></tr>
+        <tr><td>适用场景</td><td>UDP 质量监控</td><td>长期持续监控</td><td>快速可达性探测</td></tr>
+        <tr><td>运行平台</td><td>Linux / macOS</td><td>Linux / macOS</td><td>Linux / macOS</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip：</strong>如果需要 UDP 层面的丢包和 bitflip 检测，使用 bitflip 或 baize；如果只需确认目标是否可达（无需部署服务端），使用 lidar。
+      </div>
+    </div>
+
+    <!-- Section 5: Install -->
+    <div class="section" id="install">
+      <div class="section-title">
+        <div class="section-dot terracotta"></div>
+        <h3>5. 安装</h3>
+      </div>
+
+      <h3>从源码编译</h3>
+      <pre><code><span class="comment"># 克隆仓库</span>
+<span class="cmd">git clone https://github.com/baidu/nettools.git</span>
+<span class="cmd">cd nettools</span>
+
+<span class="comment"># 编译全部工具</span>
+<span class="cmd">make compile</span>
+
+<span class="comment"># 或单独编译 lidar</span>
+<span class="cmd">go build -o lidar ./cmd/lidar/</span></code></pre>
+
+      <h3>运行要求</h3>
+      <table>
+        <tr><th>要求</th><th>说明</th></tr>
+        <tr><td>root 权限</td><td>需要 <code class="inline-code">sudo</code> 运行，因为 raw socket 和 BPF 设备需要特权</td></tr>
+        <tr><td>macOS / Linux</td><td>macOS 通过 BPF 设备接收，Linux 通过 raw socket 接收</td></tr>
+        <tr><td>网络连通</td><td>需要能向目标 IP 发送原始 IP 报文</td></tr>
+      </table>
+
+      <div class="note">
+        <strong>Note：</strong>lidar 必须 <code class="inline-code">sudo</code> 运行。raw socket（<code class="inline-code">SOCK_RAW</code>）和 BPF 设备（<code class="inline-code">/dev/bpf*</code>）都需要 root 权限。
+      </div>
+    </div>
+
+    <!-- Section 6: Quick Start -->
+    <div class="section" id="quickstart">
+      <div class="section-title">
+        <div class="section-dot teal"></div>
+        <h3>6. 快速开始</h3>
+      </div>
+
+      <h3>1. 单目标探测</h3>
+      <pre><code><span class="comment"># 探测 10.0.0.2 的 80 端口（默认 10 pps）</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span></code></pre>
+
+      <h3>2. 多目标探测</h3>
+      <pre><code><span class="comment"># 同时探测多个目标</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2,10.0.0.3,10.0.0.4</span> <span class="flag">-p</span> <span class="value">22</span></code></pre>
+
+      <h3>3. 高速率探测</h3>
+      <pre><code><span class="comment"># 以 100 pps 探测，持续 30 秒</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">--rate</span> <span class="value">100</span> <span class="flag">-d</span> <span class="value">30s</span></code></pre>
+
+      <h3>4. 指定发送数量</h3>
+      <pre><code><span class="comment"># 发送 1000 个探测包后自动停止</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">-n</span> <span class="value">1000</span></code></pre>
+    </div>
+
+    <!-- Section 7: Params -->
+    <div class="section" id="params">
+      <div class="section-title">
+        <div class="section-dot plum"></div>
+        <h3>7. 命令行参数详解</h3>
+      </div>
+
+      <table>
+        <tr><th>参数</th><th>短选项</th><th>默认值</th><th>说明</th></tr>
+        <tr><td><code class="inline-code">--targets</code></td><td><code class="inline-code">-t</code></td><td>&mdash;</td><td>目标 IP 地址，逗号分隔（必填）</td></tr>
+        <tr><td><code class="inline-code">--port</code></td><td><code class="inline-code">-p</code></td><td>22</td><td>目标 TCP 端口</td></tr>
+        <tr><td><code class="inline-code">--local-addr</code></td><td><code class="inline-code">-l</code></td><td>自动检测</td><td>源 IP 地址</td></tr>
+        <tr><td><code class="inline-code">--local-port</code></td><td></td><td>54321</td><td>源端口起始值</td></tr>
+        <tr><td><code class="inline-code">--local-port-count</code></td><td></td><td>100</td><td>源端口数量（用于 ECMP 路径覆盖）</td></tr>
+        <tr><td><code class="inline-code">--rate</code></td><td></td><td>10</td><td>每秒发送探测包数（pps）</td></tr>
+        <tr><td><code class="inline-code">--span</code></td><td><code class="inline-code">-s</code></td><td>1s</td><td>统计报告间隔</td></tr>
+        <tr><td><code class="inline-code">--delay</code></td><td></td><td>3s</td><td>首次统计前的等待时间（等待在途报文）</td></tr>
+        <tr><td><code class="inline-code">--count</code></td><td><code class="inline-code">-n</code></td><td>0</td><td>最大发送数量（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">--duration</code></td><td><code class="inline-code">-d</code></td><td>0</td><td>最大发送时长（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">--interface</code></td><td><code class="inline-code">-i</code></td><td>自动检测</td><td>出接口名称（自动检测失败时指定）</td></tr>
+        <tr><td><code class="inline-code">--verbose</code></td><td><code class="inline-code">-v</code></td><td>false</td><td>打印丢包的详细端口信息</td></tr>
+      </table>
+
+      <div class="tip">
+        <strong>Tip：</strong><code class="inline-code">--local-port</code> 和 <code class="inline-code">--local-port-count</code> 控制源端口轮转范围。lidar 会从 <code class="inline-code">local-port</code> 开始依次递增，达到 <code class="inline-code">local-port + local-port-count - 1</code> 后回到起始值。多源端口可以覆盖不同的 ECMP 路径。
+      </div>
+    </div>
+
+    <!-- Section 8: Output -->
+    <div class="section" id="output">
+      <div class="section-title">
+        <div class="section-dot sage"></div>
+        <h3>8. 输出解读</h3>
+      </div>
+
+      <h3>启动日志</h3>
+      <pre><code><span class="value">2026/06/05 21:37:14 [INFO]</span> probing 1 target(s) on port 80 from 192.168.1.14 (rate: 10 pps)
+<span class="value">2026/06/05 21:37:14 [INFO]</span> bound BPF to en0 (DLT=1)</code></pre>
+      <p>启动时打印目标数量、端口、本机 IP、探测速率和绑定的 BPF 设备信息。</p>
+
+      <h3>统计报告</h3>
+      <pre><code><span class="value">2026/06/05 21:37:17 [WARN]</span> 21:37:14, [192.168.1.14 -&gt; 74.48.173.243], sent: 10, received: 10 (SYN-ACK: 10, RST: 0), timeout: 0
+<span class="value">2026/06/05 21:37:18 [INFO]</span> 21:37:15, [192.168.1.14 -&gt; 74.48.173.243], sent: 10, received: 10 (SYN-ACK: 10, RST: 0), timeout: 0</code></pre>
+      <table>
+        <tr><th>字段</th><th>说明</th></tr>
+        <tr><td><code class="inline-code">sent</code></td><td>该时间窗口内发送的探测包总数</td></tr>
+        <tr><td><code class="inline-code">received</code></td><td>收到响应的探测包总数</td></tr>
+        <tr><td><code class="inline-code">SYN-ACK</code></td><td>收到 SYN-ACK 响应的数量（目标端口开放）</td></tr>
+        <tr><td><code class="inline-code">RST</code></td><td>收到 RST 响应的数量（目标端口关闭/拒绝）</td></tr>
+        <tr><td><code class="inline-code">timeout</code></td><td>未收到响应的探测包数量（目标不可达/丢包）</td></tr>
+      </table>
+
+      <h3>日志级别</h3>
+      <table>
+        <tr><th>级别</th><th>条件</th><th>含义</th></tr>
+        <tr><td><code class="inline-code">[INFO]</code></td><td>timeout = 0</td><td>全部收到响应，网络正常</td></tr>
+        <tr><td><code class="inline-code">[WARN]</code></td><td>timeout &gt; 0</td><td>存在丢包或不可达</td></tr>
+      </table>
+
+      <div class="note">
+        <strong>Note：</strong>首次统计报告会在启动 <code class="inline-code">delay</code>（默认 3 秒）后出现。这是为了等待在途报文返回，确保统计的准确性。
+      </div>
+
+      <h3>Verbose 模式</h3>
+      <p>开启 <code class="inline-code">-v</code> 后，丢包时会打印超时的源端口-目的端口对：</p>
+      <pre><code><span class="value">2026/06/05 21:37:18 [WARN]</span> 21:37:15, [192.168.1.14 -&gt; 74.48.173.243], sent: 10, received: 8 (SYN-ACK: 8, RST: 0), timeout: 2
+<span class="value">2026/06/05 21:37:18 [WARN]</span> 21:37:15, [192.168.1.14 -&gt; 74.48.173.243], timeout ports: map[54322-80:1 54325-80:1]</span></code></pre>
+    </div>
+
+    <!-- Section 9: Examples -->
+    <div class="section" id="examples">
+      <div class="section-title">
+        <div class="section-dot terracotta"></div>
+        <h3>9. 使用示例</h3>
+      </div>
+
+      <h3>机房内服务器可达性检查</h3>
+      <pre><code><span class="comment"># 检查机柜内 3 台服务器的 SSH 端口</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.1.10,10.0.1.11,10.0.1.12</span> <span class="flag">-p</span> <span class="value">22</span> <span class="flag">-d</span> <span class="value">60s</span></code></pre>
+
+      <h3>Web 服务可用性监控</h3>
+      <pre><code><span class="comment"># 以 10 pps 持续探测 Web 服务的 80 端口</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">www.example.com对应的IP</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">--rate</span> <span class="value">10</span></code></pre>
+
+      <h3>海外机房高延迟链路探测</h3>
+      <pre><code><span class="comment"># 高速率探测海外节点（100 pps，持续 5 分钟）</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">74.48.173.243</span> <span class="flag">-p</span> <span class="value">443</span> <span class="flag">--rate</span> <span class="value">100</span> <span class="flag">-d</span> <span class="value">5m</span></code></pre>
+
+      <h3>网络割接前后对比</h3>
+      <pre><code><span class="comment"># 割接前：发送 5000 个包，verbose 模式</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">-n</span> <span class="value">5000</span> <span class="flag">-v</span>
+
+<span class="comment"># 割接后：同样参数再次探测</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">-n</span> <span class="value">5000</span> <span class="flag">-v</span></code></pre>
+
+      <h3>指定出接口</h3>
+      <pre><code><span class="comment"># 多网卡环境下指定出接口</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">-i</span> <span class="value">eth1</span></code></pre>
+
+      <h3>ECMP 路径覆盖</h3>
+      <pre><code><span class="comment"># 使用更多源端口覆盖不同 ECMP 路径</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">--local-port</span> <span class="value">40000</span> <span class="flag">--local-port-count</span> <span class="value">500</span> <span class="flag">--rate</span> <span class="value">500</span> <span class="flag">-d</span> <span class="value">60s</span></code></pre>
+    </div>
+
+    <!-- Section 10: FAQ -->
+    <div class="section" id="faq">
+      <div class="section-title">
+        <div class="section-dot terracotta"></div>
+        <h3>10. FAQ</h3>
+      </div>
+
+      <h3>Q: lidar 和 ping 有什么区别?</h3>
+      <p>ping 使用 ICMP Echo，只能判断 IP 层可达性。lidar 使用 TCP SYN，可以判断特定 TCP 端口是否可达，并能区分端口开放（SYN-ACK）、端口关闭（RST）和不可达（timeout）三种状态。</p>
+
+      <h3>Q: 为什么必须 sudo 运行?</h3>
+      <p>lidar 使用 raw socket（<code class="inline-code">SOCK_RAW</code>）构造原始 IP/TCP 报文，并在 macOS 上使用 BPF 设备（<code class="inline-code">/dev/bpf*</code>）接收响应，这些操作都需要 root 权限。</p>
+
+      <h3>Q: 探测目标需要安装什么吗?</h3>
+      <p>不需要。lidar 利用目标主机内核的 TCP 协议栈自动响应 SYN 报文。只要目标 IP 可达且 TCP 端口有服务监听，就会返回 SYN-ACK；端口关闭则返回 RST。无需在远端安装任何软件。</p>
+
+      <h3>Q: lidar 会影响目标服务器的正常 TCP 连接吗?</h3>
+      <p>不会。lidar 发送 SYN 后收到 SYN-ACK 即完成统计，不会发送 ACK 完成三次握手。目标服务器会在超时后自动清理这个半开连接，不影响已有的 TCP 连接。</p>
+
+      <h3>Q: 为什么第一个统计报告要等 3 秒?</h3>
+      <p><code class="inline-code">--delay</code>（默认 3 秒）是为了等待在途报文返回。如果立即统计，最后几个探测包的响应可能还没回来，会被误判为丢包。可以通过 <code class="inline-code">--delay</code> 调整等待时间。</p>
+
+      <h3>Q: 如何停止 lidar?</h3>
+      <p>按 <code class="inline-code">Ctrl+C</code> 发送 SIGINT 信号。lidar 会等待 delay 时间让在途报文返回后退出，确保最后的统计数据准确。如果指定了 <code class="inline-code">-n</code> 或 <code class="inline-code">-d</code>，到达限制后也会自动停止。</p>
+
+      <h3>Q: --rate 应该设多少?</h3>
+      <p>取决于网络环境和目标数量。默认 10 pps 适合一般探测。高速率（100-1000 pps）适合压力测试或高精度丢包检测。注意过高速率可能被网络设备限速或触发安全策略。</p>
+
+      <h3>Q: 自动检测出接口失败怎么办?</h3>
+      <p>如果自动检测失败，使用 <code class="inline-code">-i</code> 指定出接口名称，例如 <code class="inline-code">-i eth0</code>（Linux）或 <code class="inline-code">-i en0</code>（macOS）。</p>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">
+      nettools &middot; Baidu System Department &middot; github.com/baidu/nettools
+    </p>
+  </div>
+</body>
+</html>
