@@ -24,6 +24,8 @@ type StatResult struct {
 	LossRate          float64
 	AvgRTT            int64
 	MaxRTT            int64
+	SynAckCount       int
+	RSTCount          int
 	LossPorts         map[int]int
 	BitflipPorts      map[int]int
 	LossPortsCount    map[string]int
@@ -42,6 +44,9 @@ type Stat interface {
 	Delete(seq uint64, ts int64)
 	// Received marks a probe packet as received and records its RTT.
 	Received(seq uint64, ts, rtt int64, hasBitflip bool)
+	// ReceivedRST marks a probe as responded with TCP RST (denied).
+	// TCP SYN scanners use this to distinguish RST from SYN-ACK.
+	ReceivedRST(seq uint64, ts, rtt int64)
 	// ReceivedAndFix marks a probe as received and corrects the previous
 	// bucket's sent count and starting ports using values from the client.
 	ReceivedAndFix(seq uint64, ts, rtt int64, lastSentCount uint32, lastStartSrcPort, lastStartDstPort uint16, hasBitflip bool)
@@ -75,6 +80,8 @@ type statResult struct {
 	lossRate          float64
 	rtt               int64
 	maxRTT            int64
+	synack            int
+	rst               int
 	lossPorts         map[int]int
 	bitflipPorts      map[int]int
 	lossPortsCount    map[string]int

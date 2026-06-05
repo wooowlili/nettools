@@ -17,6 +17,7 @@ type request struct {
 	ts         int64
 	rtt        int64
 	hasBitflip bool
+	isRst      bool // true if the response was TCP RST (not SYN-ACK)
 }
 
 // buckets is a thread-safe collection of time-bucketed probe records.
@@ -88,11 +89,29 @@ func (bs *buckets) delete(seq uint64, ts int64) {
 
 // received marks a probe as received in the bucket corresponding to the
 // given timestamp, recording its RTT and bit-flip status.
+// When the response crosses a span boundary (receive timestamp falls in the
+// next bucket), the previous bucket is searched so the original send entry is
+// updated instead of creating a duplicate.
 func (bs *buckets) received(seq uint64, ts, rtt int64, hasBitflip bool) {
 	bucketID := ts / int64(bs.span)
 
-	bs.Lock()
+	// Try the bucket for the receive timestamp first.
+	bs.RLock()
 	b := bs.buckets[bucketID]
+	prev := bs.buckets[bucketID-1]
+	bs.RUnlock()
+
+	if b != nil && b.updateReceived(seq, rtt, hasBitflip) {
+		return
+	}
+	// Response may have crossed a span boundary — try the previous bucket.
+	if prev != nil && prev.updateReceived(seq, rtt, hasBitflip) {
+		return
+	}
+
+	// Not found in either bucket, create new entry.
+	bs.Lock()
+	b = bs.buckets[bucketID]
 	if b == nil {
 		b = newBucket(bucketID, bs.span, bs.rateInSpan, bs.serverSide)
 		bs.buckets[bucketID] = b
@@ -103,6 +122,37 @@ func (bs *buckets) received(seq uint64, ts, rtt int64, hasBitflip bool) {
 	bs.Unlock()
 
 	b.received(seq, rtt, hasBitflip)
+}
+
+// receivedRST marks a probe as responded with TCP RST, setting its RTT and RST flag.
+// When the response crosses a span boundary, the previous bucket is searched.
+func (bs *buckets) receivedRST(seq uint64, ts, rtt int64) {
+	bucketID := ts / int64(bs.span)
+
+	bs.RLock()
+	b := bs.buckets[bucketID]
+	prev := bs.buckets[bucketID-1]
+	bs.RUnlock()
+
+	if b != nil && b.updateReceivedRST(seq, rtt) {
+		return
+	}
+	if prev != nil && prev.updateReceivedRST(seq, rtt) {
+		return
+	}
+
+	bs.Lock()
+	b = bs.buckets[bucketID]
+	if b == nil {
+		b = newBucket(bucketID, bs.span, bs.rateInSpan, bs.serverSide)
+		bs.buckets[bucketID] = b
+		if bs.minID < 0 || bucketID < bs.minID {
+			bs.minID = bucketID
+		}
+	}
+	bs.Unlock()
+
+	b.receivedRST(seq, rtt)
 }
 
 // receivedAndFix marks a probe as received and, on the first call for a
@@ -209,6 +259,20 @@ func (b *bucket) delete(seq uint64) {
 	b.Unlock()
 }
 
+// updateReceived updates an existing request's RTT and bit-flip status.
+// Returns true if the request was found and updated, false otherwise.
+func (b *bucket) updateReceived(seq uint64, rtt int64, hasBitflip bool) bool {
+	b.Lock()
+	r, ok := b.requests[seq]
+	if ok {
+		r.rtt = rtt
+		r.hasBitflip = hasBitflip
+		b.requests[seq] = r
+	}
+	b.Unlock()
+	return ok
+}
+
 // received marks a request as received, setting its RTT and bit-flip status.
 // If the request was not previously recorded (e.g. out-of-order receive),
 // a new entry is created.
@@ -221,6 +285,34 @@ func (b *bucket) received(seq uint64, rtt int64, hasBitflip bool) {
 		b.requests[seq] = r
 	} else {
 		b.requests[seq] = request{seq: seq, rtt: rtt, hasBitflip: hasBitflip}
+	}
+	b.Unlock()
+}
+
+// updateReceivedRST updates an existing request's RTT and RST flag.
+// Returns true if the request was found and updated, false otherwise.
+func (b *bucket) updateReceivedRST(seq uint64, rtt int64) bool {
+	b.Lock()
+	r, ok := b.requests[seq]
+	if ok {
+		r.rtt = rtt
+		r.isRst = true
+		b.requests[seq] = r
+	}
+	b.Unlock()
+	return ok
+}
+
+// receivedRST marks a request as responded with TCP RST, setting its RTT and RST flag.
+func (b *bucket) receivedRST(seq uint64, rtt int64) {
+	b.Lock()
+	r, ok := b.requests[seq]
+	if ok {
+		r.rtt = rtt
+		r.isRst = true
+		b.requests[seq] = r
+	} else {
+		b.requests[seq] = request{seq: seq, rtt: rtt, isRst: true}
 	}
 	b.Unlock()
 }
@@ -256,6 +348,11 @@ func (b *bucket) stat() statResult {
 
 		if r.rtt != rttUnset {
 			result.received++
+			if r.isRst {
+				result.rst++
+			} else {
+				result.synack++
+			}
 			result.rtt += r.rtt
 			if r.hasBitflip {
 				result.bitflipPorts[srcPort] = dstPort

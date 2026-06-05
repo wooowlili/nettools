@@ -1,0 +1,1999 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>nettools · 百度物理网络黑盒监控工具集</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family:
+                    "Inter",
+                    -apple-system,
+                    BlinkMacSystemFont,
+                    sans-serif;
+                background: #faf9f6;
+                min-height: 100vh;
+                color: #1a1a1a;
+            }
+
+            .container {
+                max-width: 1000px;
+                margin: 0 auto;
+                padding: 0 2rem;
+            }
+
+            /* Hero */
+            .hero {
+                position: relative;
+                padding: 3.5rem 0 2.5rem;
+                text-align: center;
+                overflow: hidden;
+                background: linear-gradient(
+                    180deg,
+                    #f5f3f0 0%,
+                    #faf9f6 50%,
+                    #faf9f6 100%
+                );
+            }
+
+            /* World map background */
+            .hero-map {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0.06;
+                pointer-events: none;
+            }
+
+            .hero-map path {
+                fill: #5b8a72;
+                stroke: none;
+            }
+
+            /* Data center nodes */
+            .hero-dc {
+                position: absolute;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #d97757;
+                box-shadow:
+                    0 0 4px rgba(217, 119, 87, 0.3),
+                    0 0 10px rgba(217, 119, 87, 0.12);
+                animation: dcPulse 3s ease-in-out infinite;
+                pointer-events: none;
+            }
+
+            .hero-dc:nth-child(2) {
+                animation-delay: 0.3s;
+            }
+            .hero-dc:nth-child(3) {
+                animation-delay: 0.6s;
+            }
+            .hero-dc:nth-child(4) {
+                animation-delay: 0.9s;
+            }
+            .hero-dc:nth-child(5) {
+                animation-delay: 1.2s;
+            }
+            .hero-dc:nth-child(6) {
+                animation-delay: 1.5s;
+            }
+            .hero-dc:nth-child(7) {
+                animation-delay: 0.4s;
+                background: #5b8a72;
+                box-shadow:
+                    0 0 4px rgba(91, 138, 114, 0.3),
+                    0 0 10px rgba(91, 138, 114, 0.12);
+            }
+            .hero-dc:nth-child(8) {
+                animation-delay: 0.7s;
+                background: #5b8a72;
+                box-shadow:
+                    0 0 4px rgba(91, 138, 114, 0.3),
+                    0 0 10px rgba(91, 138, 114, 0.12);
+            }
+            .hero-dc:nth-child(9) {
+                animation-delay: 1.1s;
+                background: #5b8a72;
+                box-shadow:
+                    0 0 4px rgba(91, 138, 114, 0.3),
+                    0 0 10px rgba(91, 138, 114, 0.12);
+            }
+            .hero-dc:nth-child(10) {
+                animation-delay: 1.4s;
+                background: #8b6f8a;
+                box-shadow:
+                    0 0 4px rgba(139, 111, 138, 0.3),
+                    0 0 10px rgba(139, 111, 138, 0.12);
+            }
+            .hero-dc:nth-child(11) {
+                animation-delay: 1.8s;
+                background: #8b6f8a;
+                box-shadow:
+                    0 0 4px rgba(139, 111, 138, 0.3),
+                    0 0 10px rgba(139, 111, 138, 0.12);
+            }
+            .hero-dc:nth-child(12) {
+                animation-delay: 0.2s;
+                background: #8b6f8a;
+                box-shadow:
+                    0 0 4px rgba(139, 111, 138, 0.3),
+                    0 0 10px rgba(139, 111, 138, 0.12);
+            }
+            .hero-dc:nth-child(13) {
+                animation-delay: 0.5s;
+            }
+            .hero-dc:nth-child(14) {
+                animation-delay: 1s;
+                background: #5b8a72;
+                box-shadow:
+                    0 0 4px rgba(91, 138, 114, 0.3),
+                    0 0 10px rgba(91, 138, 114, 0.12);
+            }
+            .hero-dc:nth-child(15) {
+                animation-delay: 1.6s;
+                background: #8b6f8a;
+                box-shadow:
+                    0 0 4px rgba(139, 111, 138, 0.3),
+                    0 0 10px rgba(139, 111, 138, 0.12);
+            }
+
+            @keyframes dcPulse {
+                0%,
+                100% {
+                    transform: scale(1);
+                    opacity: 0.35;
+                }
+                50% {
+                    transform: scale(2);
+                    opacity: 0.6;
+                }
+            }
+
+            /* Signal packets traveling between data centers */
+            .hero-signal {
+                position: absolute;
+                width: 2px;
+                height: 2px;
+                border-radius: 50%;
+                background: rgba(217, 119, 87, 0.5);
+                box-shadow:
+                    0 0 3px rgba(217, 119, 87, 0.35),
+                    0 0 6px rgba(217, 119, 87, 0.15);
+                pointer-events: none;
+                animation-duration: 4s;
+                animation-timing-function: linear;
+                animation-iteration-count: infinite;
+            }
+
+            /* Beijing(73%,10%) ↔ Shanghai(78%,14%) */
+            .hero-signal:nth-child(16) {
+                animation-name: sigBJ_SH_A;
+                animation-delay: 0s;
+            }
+            .hero-signal:nth-child(17) {
+                animation-name: sigBJ_SH_B;
+                animation-delay: 2s;
+            }
+            /* Beijing(73%,10%) ↔ Tokyo(86%,11%) */
+            .hero-signal:nth-child(18) {
+                animation-name: sigBJ_TK_A;
+                animation-delay: 0.5s;
+            }
+            .hero-signal:nth-child(19) {
+                animation-name: sigBJ_TK_B;
+                animation-delay: 2.5s;
+            }
+            /* Beijing(73%,10%) ↔ Singapore(76%,32%) */
+            .hero-signal:nth-child(20) {
+                animation-name: sigBJ_SG_A;
+                animation-delay: 1s;
+            }
+            .hero-signal:nth-child(21) {
+                animation-name: sigBJ_SG_B;
+                animation-delay: 3s;
+            }
+            /* Tokyo(86%,11%) ↔ Silicon Valley(10%,14%) */
+            .hero-signal:nth-child(22) {
+                animation-name: sigTK_SV_A;
+                animation-delay: 0.3s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            .hero-signal:nth-child(23) {
+                animation-name: sigTK_SV_B;
+                animation-delay: 2.3s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            /* Singapore(76%,32%) ↔ Mumbai(65%,30%) */
+            .hero-signal:nth-child(24) {
+                animation-name: sigSG_MB_A;
+                animation-delay: 0.8s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            .hero-signal:nth-child(25) {
+                animation-name: sigSG_MB_B;
+                animation-delay: 2.8s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            /* Mumbai(65%,30%) ↔ Dubai(52%,24%) */
+            .hero-signal:nth-child(26) {
+                animation-name: sigMB_DB_A;
+                animation-delay: 0.2s;
+                background: rgba(139, 111, 138, 0.5);
+                box-shadow:
+                    0 0 3px rgba(139, 111, 138, 0.35),
+                    0 0 6px rgba(139, 111, 138, 0.15);
+            }
+            .hero-signal:nth-child(27) {
+                animation-name: sigMB_DB_B;
+                animation-delay: 2.2s;
+                background: rgba(139, 111, 138, 0.5);
+                box-shadow:
+                    0 0 3px rgba(139, 111, 138, 0.35),
+                    0 0 6px rgba(139, 111, 138, 0.15);
+            }
+            /* Dubai(52%,24%) ↔ Frankfurt(48%,13%) */
+            .hero-signal:nth-child(28) {
+                animation-name: sigDB_FK_A;
+                animation-delay: 0.7s;
+                background: rgba(139, 111, 138, 0.5);
+                box-shadow:
+                    0 0 3px rgba(139, 111, 138, 0.35),
+                    0 0 6px rgba(139, 111, 138, 0.15);
+            }
+            .hero-signal:nth-child(29) {
+                animation-name: sigDB_FK_B;
+                animation-delay: 2.7s;
+                background: rgba(139, 111, 138, 0.5);
+                box-shadow:
+                    0 0 3px rgba(139, 111, 138, 0.35),
+                    0 0 6px rgba(139, 111, 138, 0.15);
+            }
+            /* Frankfurt(48%,13%) ↔ London(43%,11%) */
+            .hero-signal:nth-child(30) {
+                animation-name: sigFK_LN_A;
+                animation-delay: 0.4s;
+            }
+            .hero-signal:nth-child(31) {
+                animation-name: sigFK_LN_B;
+                animation-delay: 2.4s;
+            }
+            /* London(43%,11%) ↔ Virginia(18%,18%) */
+            .hero-signal:nth-child(32) {
+                animation-name: sigLN_VA_A;
+                animation-delay: 0.1s;
+            }
+            .hero-signal:nth-child(33) {
+                animation-name: sigLN_VA_B;
+                animation-delay: 2.1s;
+            }
+            /* Virginia(18%,18%) ↔ Silicon Valley(10%,14%) */
+            .hero-signal:nth-child(34) {
+                animation-name: sigVA_SV_A;
+                animation-delay: 0.9s;
+            }
+            .hero-signal:nth-child(35) {
+                animation-name: sigVA_SV_B;
+                animation-delay: 2.9s;
+            }
+            /* Virginia(18%,18%) ↔ Sao Paulo(18%,56%) */
+            .hero-signal:nth-child(36) {
+                animation-name: sigVA_SP_A;
+                animation-delay: 1.3s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            .hero-signal:nth-child(37) {
+                animation-name: sigVA_SP_B;
+                animation-delay: 3.3s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            /* Singapore(76%,32%) ↔ Sydney(82%,56%) */
+            .hero-signal:nth-child(38) {
+                animation-name: sigSG_SY_A;
+                animation-delay: 0.6s;
+            }
+            .hero-signal:nth-child(39) {
+                animation-name: sigSG_SY_B;
+                animation-delay: 2.6s;
+            }
+            /* Guangzhou(76%,22%) ↔ Shenzhen(77%,24%) */
+            .hero-signal:nth-child(40) {
+                animation-name: sigGZ_SZ_A;
+                animation-delay: 0.35s;
+            }
+            .hero-signal:nth-child(41) {
+                animation-name: sigGZ_SZ_B;
+                animation-delay: 2.35s;
+            }
+            /* Beijing(73%,10%) ↔ Guangzhou(76%,22%) */
+            .hero-signal:nth-child(42) {
+                animation-name: sigBJ_GZ_A;
+                animation-delay: 0.15s;
+            }
+            .hero-signal:nth-child(43) {
+                animation-name: sigBJ_GZ_B;
+                animation-delay: 2.15s;
+            }
+            /* Beijing(73%,10%) ↔ Chengdu(66%,18%) */
+            .hero-signal:nth-child(44) {
+                animation-name: sigBJ_CD_A;
+                animation-delay: 0.55s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            .hero-signal:nth-child(45) {
+                animation-name: sigBJ_CD_B;
+                animation-delay: 2.55s;
+                background: rgba(91, 138, 114, 0.5);
+                box-shadow:
+                    0 0 3px rgba(91, 138, 114, 0.35),
+                    0 0 6px rgba(91, 138, 114, 0.15);
+            }
+            /* Shanghai(78%,14%) ↔ Tokyo(86%,11%) */
+            .hero-signal:nth-child(46) {
+                animation-name: sigSH_TK_A;
+                animation-delay: 0.7s;
+                background: rgba(139, 111, 138, 0.5);
+                box-shadow:
+                    0 0 3px rgba(139, 111, 138, 0.35),
+                    0 0 6px rgba(139, 111, 138, 0.15);
+            }
+            .hero-signal:nth-child(47) {
+                animation-name: sigSH_TK_B;
+                animation-delay: 2.7s;
+                background: rgba(139, 111, 138, 0.5);
+                box-shadow:
+                    0 0 3px rgba(139, 111, 138, 0.35),
+                    0 0 6px rgba(139, 111, 138, 0.15);
+            }
+
+            @keyframes sigBJ_SH_A {
+                0% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 14%;
+                    left: 78%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 14%;
+                    left: 78%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_SH_B {
+                0% {
+                    top: 14%;
+                    left: 78%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_TK_A {
+                0% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_TK_B {
+                0% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_SG_A {
+                0% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_SG_B {
+                0% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigTK_SV_A {
+                0% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 14%;
+                    left: 10%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 14%;
+                    left: 10%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigTK_SV_B {
+                0% {
+                    top: 14%;
+                    left: 10%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigSG_MB_A {
+                0% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 30%;
+                    left: 65%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 30%;
+                    left: 65%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigSG_MB_B {
+                0% {
+                    top: 30%;
+                    left: 65%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigMB_DB_A {
+                0% {
+                    top: 30%;
+                    left: 65%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 24%;
+                    left: 52%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 24%;
+                    left: 52%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigMB_DB_B {
+                0% {
+                    top: 24%;
+                    left: 52%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 30%;
+                    left: 65%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 30%;
+                    left: 65%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigDB_FK_A {
+                0% {
+                    top: 24%;
+                    left: 52%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 13%;
+                    left: 48%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 13%;
+                    left: 48%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigDB_FK_B {
+                0% {
+                    top: 13%;
+                    left: 48%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 24%;
+                    left: 52%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 24%;
+                    left: 52%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigFK_LN_A {
+                0% {
+                    top: 13%;
+                    left: 48%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 11%;
+                    left: 43%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 11%;
+                    left: 43%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigFK_LN_B {
+                0% {
+                    top: 11%;
+                    left: 43%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 13%;
+                    left: 48%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 13%;
+                    left: 48%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigLN_VA_A {
+                0% {
+                    top: 11%;
+                    left: 43%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigLN_VA_B {
+                0% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 11%;
+                    left: 43%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 11%;
+                    left: 43%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigVA_SV_A {
+                0% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 14%;
+                    left: 10%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 14%;
+                    left: 10%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigVA_SV_B {
+                0% {
+                    top: 14%;
+                    left: 10%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigVA_SP_A {
+                0% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 55.4%;
+                    left: 24%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 55.4%;
+                    left: 24%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigVA_SP_B {
+                0% {
+                    top: 55.4%;
+                    left: 24%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 18%;
+                    left: 18%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigSG_SY_A {
+                0% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 56%;
+                    left: 82%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 56%;
+                    left: 82%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigSG_SY_B {
+                0% {
+                    top: 56%;
+                    left: 82%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 32%;
+                    left: 76%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigGZ_SZ_A {
+                0% {
+                    top: 22%;
+                    left: 76%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 24%;
+                    left: 77%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 24%;
+                    left: 77%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigGZ_SZ_B {
+                0% {
+                    top: 24%;
+                    left: 77%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 22%;
+                    left: 76%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 22%;
+                    left: 76%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_GZ_A {
+                0% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 22%;
+                    left: 76%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 22%;
+                    left: 76%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_GZ_B {
+                0% {
+                    top: 22%;
+                    left: 76%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_CD_A {
+                0% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 18%;
+                    left: 66%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 18%;
+                    left: 66%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigBJ_CD_B {
+                0% {
+                    top: 18%;
+                    left: 66%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 10%;
+                    left: 73%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigSH_TK_A {
+                0% {
+                    top: 14%;
+                    left: 78%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 0;
+                }
+            }
+            @keyframes sigSH_TK_B {
+                0% {
+                    top: 11%;
+                    left: 86%;
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                45% {
+                    top: 14%;
+                    left: 78%;
+                    opacity: 1;
+                }
+                55% {
+                    opacity: 0;
+                }
+                100% {
+                    top: 14%;
+                    left: 78%;
+                    opacity: 0;
+                }
+            }
+
+            /* Hero content - above the bg */
+            .hero-content {
+                position: relative;
+                z-index: 1;
+            }
+
+            .hero-badge {
+                display: inline-block;
+                padding: 0.25rem 0.75rem;
+                background: rgba(217, 119, 87, 0.1);
+                border: 1px solid rgba(217, 119, 87, 0.25);
+                border-radius: 20px;
+                font-size: 0.6875rem;
+                font-weight: 500;
+                color: #d97757;
+                letter-spacing: 0.03em;
+                margin-bottom: 1.25rem;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+                font-weight: 700;
+                letter-spacing: -0.025em;
+                color: #1a1a1a;
+                line-height: 1.3;
+                margin-bottom: 0.75rem;
+            }
+
+            .hero h1 span {
+                color: #d97757;
+            }
+
+            .hero p {
+                font-size: 0.9375rem;
+                color: #4a4540;
+                line-height: 1.7;
+                max-width: 640px;
+                margin: 0 auto 1.5rem;
+            }
+
+            .hero-links {
+                display: flex;
+                justify-content: center;
+                gap: 0.75rem;
+                flex-wrap: wrap;
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.375rem;
+                padding: 0.5rem 1.125rem;
+                border-radius: 8px;
+                font-size: 0.8125rem;
+                font-weight: 500;
+                text-decoration: none;
+                transition: all 0.2s;
+            }
+
+            .btn-primary {
+                background: #d97757;
+                color: #fff;
+                border: 1px solid #d97757;
+            }
+
+            .btn-primary:hover {
+                background: #c4684a;
+                border-color: #c4684a;
+            }
+
+            .btn-outline {
+                background: transparent;
+                color: #4a4540;
+                border: 1px solid #d0ccc6;
+            }
+
+            .btn-outline:hover {
+                background: #f5f3f0;
+                border-color: #b0aaa4;
+            }
+
+            .btn svg {
+                width: 14px;
+                height: 14px;
+            }
+
+            /* Stats bar */
+            .stats-bar {
+                display: flex;
+                justify-content: center;
+                gap: 3rem;
+                padding: 1.5rem 0;
+                border-top: 1px solid #e8e4de;
+                border-bottom: 1px solid #e8e4de;
+                margin-bottom: 2.5rem;
+            }
+
+            .stat-item {
+                text-align: center;
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #1a1a1a;
+                letter-spacing: -0.02em;
+            }
+
+            .stat-label {
+                font-size: 0.6875rem;
+                color: #8b8680;
+                margin-top: 0.125rem;
+            }
+
+            /* Section */
+            .section {
+                background: #ffffff;
+                border-radius: 12px;
+                border: 1px solid #e8e4de;
+                padding: 1.75rem 2rem;
+                margin-bottom: 1.5rem;
+                box-shadow:
+                    0 1px 3px rgba(0, 0, 0, 0.04),
+                    0 4px 12px rgba(0, 0, 0, 0.02);
+            }
+
+            .section-header {
+                display: flex;
+                align-items: center;
+                gap: 0.625rem;
+                margin-bottom: 1.25rem;
+                padding-bottom: 0.75rem;
+                border-bottom: 1px solid #f0ede8;
+            }
+
+            .section-dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                flex-shrink: 0;
+            }
+
+            .section-dot.terracotta {
+                background: #d97757;
+            }
+            .section-dot.sage {
+                background: #5b8a72;
+            }
+            .section-dot.slate {
+                background: #6b7280;
+            }
+
+            .section-header h2 {
+                font-size: 1.0625rem;
+                font-weight: 700;
+                color: #1a1a1a;
+                letter-spacing: -0.01em;
+            }
+
+            .section-header .badge {
+                display: inline-block;
+                padding: 0.125rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.6875rem;
+                font-weight: 500;
+                margin-left: 0.5rem;
+            }
+
+            .badge-new {
+                background: #f5f8f6;
+                color: #5b8a72;
+                border: 1px solid #5b8a72;
+            }
+
+            .badge-stable {
+                background: #f5f3f8;
+                color: #8b6f8a;
+                border: 1px solid #8b6f8a;
+            }
+
+            .guide-link {
+                margin-left: auto;
+                font-size: 0.75rem;
+                font-weight: 500;
+                color: #5b8a72;
+                text-decoration: none;
+                white-space: nowrap;
+            }
+
+            .guide-link:hover {
+                color: #d97757;
+            }
+
+            p {
+                color: #4a4540;
+                font-size: 0.8125rem;
+                line-height: 1.7;
+                margin-bottom: 0.75rem;
+            }
+
+            h3 {
+                font-size: 0.9375rem;
+                font-weight: 600;
+                color: #1a1a1a;
+                margin-top: 1.25rem;
+                margin-bottom: 0.5rem;
+            }
+
+            /* Feature grid */
+            .feature-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                gap: 0.875rem;
+                margin: 1rem 0;
+            }
+
+            .feature-card {
+                background: #fdfcfb;
+                border: 1px solid #e8e4de;
+                border-radius: 8px;
+                padding: 1rem 1.125rem;
+            }
+
+            .feature-card .feature-icon {
+                font-size: 1.125rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .feature-card h4 {
+                font-size: 0.8125rem;
+                font-weight: 600;
+                color: #1a1a1a;
+                margin-bottom: 0.25rem;
+            }
+
+            .feature-card p {
+                font-size: 0.75rem;
+                color: #6b6560;
+                line-height: 1.6;
+                margin-bottom: 0;
+            }
+
+            /* Capability list */
+            .cap-list {
+                list-style: none;
+                color: #4a4540;
+                font-size: 0.8125rem;
+                line-height: 1.7;
+                margin: 0.5rem 0 0.75rem;
+            }
+
+            .cap-list li {
+                padding: 0.375rem 0;
+                padding-left: 1.25rem;
+                position: relative;
+            }
+
+            .cap-list li::before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0.7rem;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #d97757;
+            }
+
+            /* Comparison table */
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.75rem;
+                margin: 0.75rem 0;
+            }
+
+            th {
+                background: #f7f6f4;
+                font-weight: 600;
+                text-align: left;
+                padding: 0.625rem 0.75rem;
+                color: #4a4540;
+                border-bottom: 1px solid #e8e4de;
+            }
+
+            td {
+                padding: 0.5rem 0.75rem;
+                color: #4a4540;
+                border-bottom: 1px solid #f0ede8;
+            }
+
+            tr:hover td {
+                background: #fdfcfb;
+            }
+
+            /* Scenario tags */
+            .scenario-tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin: 0.75rem 0;
+            }
+
+            .scenario-tag {
+                padding: 0.25rem 0.625rem;
+                background: #f5f3f0;
+                border: 1px solid #e8e4de;
+                border-radius: 6px;
+                font-size: 0.75rem;
+                color: #4a4540;
+            }
+
+            /* Note / Tip */
+            .note {
+                background: #fff5f0;
+                border-left: 3px solid #d97757;
+                border-radius: 0 8px 8px 0;
+                padding: 0.75rem 1rem;
+                font-size: 0.75rem;
+                color: #6b6560;
+                margin: 0.75rem 0;
+            }
+
+            .note strong {
+                color: #d97757;
+            }
+
+            .tip {
+                background: #f5f8f6;
+                border-left: 3px solid #5b8a72;
+                border-radius: 0 8px 8px 0;
+                padding: 0.75rem 1rem;
+                font-size: 0.75rem;
+                color: #6b6560;
+                margin: 0.75rem 0;
+            }
+
+            .tip strong {
+                color: #5b8a72;
+            }
+
+            /* Philosophy */
+            .philosophy {
+                text-align: center;
+                padding: 2.5rem 0 1.5rem;
+            }
+
+            .philosophy blockquote {
+                font-size: 1rem;
+                color: #4a4540;
+                line-height: 1.7;
+                max-width: 600px;
+                margin: 0 auto;
+                font-style: italic;
+                position: relative;
+            }
+
+            .philosophy blockquote::before {
+                content: '"';
+                font-size: 3rem;
+                color: #e8e4de;
+                position: absolute;
+                left: -1.5rem;
+                top: -0.5rem;
+                line-height: 1;
+            }
+
+            /* Footer */
+            .footer {
+                text-align: center;
+                padding: 1.5rem 0 2.5rem;
+                color: #b0aaa4;
+                font-size: 0.6875rem;
+                letter-spacing: 0.02em;
+            }
+
+            .footer a {
+                color: #5b8a72;
+                text-decoration: none;
+            }
+
+            .footer a:hover {
+                color: #d97757;
+            }
+
+            /* Tool index bar */
+            .tool-index-bar {
+                display: flex;
+                align-items: center;
+                gap: 0.625rem;
+                padding: 0.75rem 0;
+                margin-bottom: 2rem;
+                font-size: 0.75rem;
+                color: #8b8680;
+            }
+
+            .tool-index-bar span {
+                color: #8b8680;
+                font-weight: 500;
+            }
+
+            .tool-index-bar a {
+                color: #5b8a72;
+                text-decoration: none;
+                font-weight: 500;
+                padding: 0.25rem 0.625rem;
+                border-radius: 6px;
+                border: 1px solid transparent;
+                transition: all 0.2s;
+            }
+
+            .tool-index-bar a:hover {
+                color: #d97757;
+                background: #f5f3f0;
+                border-color: #e8e4de;
+            }
+
+            /* Responsive */
+            @media (max-width: 640px) {
+                .hero h1 {
+                    font-size: 1.5rem;
+                }
+
+                .stats-bar {
+                    gap: 1.5rem;
+                }
+
+                .section {
+                    padding: 1.25rem 1.25rem;
+                }
+
+                .container {
+                    padding: 0 1rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <!-- Hero -->
+            <div class="hero">
+                <!-- Background: transparent world map -->
+                <svg
+                    class="hero-map"
+                    viewBox="0 0 960 560"
+                    preserveAspectRatio="xMidYMin slice"
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <!-- Americas -->
+                    <path
+                        d="M150,80 L180,60 L210,70 L220,90 L240,80 L260,95 L270,120 L280,130 L290,150 L280,170 L270,185 L260,200 L250,220 L230,240 L210,250 L190,255 L170,250 L155,240 L145,220 L140,200 L138,180 L140,155 L145,130 Z"
+                    />
+                    <path
+                        d="M170,260 L185,265 L195,275 L200,290 L195,310 L185,330 L170,345 L155,350 L140,340 L130,320 L128,300 L135,280 L150,265 Z"
+                    />
+                    <path
+                        d="M160,355 L175,360 L185,375 L180,395 L165,405 L150,400 L140,385 L142,370 Z"
+                    />
+                    <!-- Greenland -->
+                    <path
+                        d="M240,50 L260,40 L280,45 L285,60 L275,75 L255,70 L240,60 Z"
+                    />
+                    <!-- Europe -->
+                    <path
+                        d="M430,60 L450,50 L465,55 L480,50 L495,60 L500,75 L490,90 L480,100 L470,110 L455,115 L440,110 L430,100 L425,85 Z"
+                    />
+                    <path
+                        d="M435,120 L450,115 L465,120 L475,130 L470,145 L455,150 L440,145 L432,135 Z"
+                    />
+                    <!-- UK/Ireland -->
+                    <path d="M420,70 L435,65 L440,80 L430,90 Z" />
+                    <!-- Scandinavia -->
+                    <path
+                        d="M470,40 L485,30 L500,25 L510,35 L515,50 L505,65 L490,60 L478,55 Z"
+                    />
+                    <!-- Africa -->
+                    <path
+                        d="M440,155 L460,150 L475,155 L490,165 L500,180 L505,200 L500,220 L495,240 L485,260 L470,275 L455,280 L440,270 L430,255 L420,240 L418,220 L420,200 L425,180 Z"
+                    />
+                    <path
+                        d="M440,155 L430,170 L425,190 L430,210 L440,225 L445,210 L448,190 L445,170 Z"
+                    />
+                    <!-- Asia (mainland) -->
+                    <path
+                        d="M510,40 L540,25 L570,20 L600,18 L640,22 L670,30 L700,35 L720,50 L740,45 L760,60 L780,55 L800,70 L810,90 L805,110 L790,120 L770,125 L750,120 L730,125 L710,130 L690,140 L670,150 L650,155 L630,155 L610,160 L590,155 L570,150 L550,145 L530,135 L515,120 L505,100 L505,80 Z"
+                    />
+                    <!-- India -->
+                    <path
+                        d="M640,160 L655,155 L670,165 L675,185 L670,205 L655,220 L640,225 L630,215 L625,195 L628,175 Z"
+                    />
+                    <!-- Southeast Asia -->
+                    <path
+                        d="M720,135 L740,140 L755,150 L760,165 L750,175 L735,170 L720,160 L715,148 Z"
+                    />
+                    <path
+                        d="M770,155 L790,165 L800,180 L790,195 L775,190 L765,175 Z"
+                    />
+                    <!-- Japan -->
+                    <path
+                        d="M810,60 L820,50 L825,60 L830,75 L825,90 L815,95 L808,85 L805,70 Z"
+                    />
+                    <!-- Indonesia / Philippines -->
+                    <path d="M730,180 L745,185 L755,190 L750,200 L735,198 Z" />
+                    <path d="M790,170 L805,175 L815,180 L810,190 L798,188 Z" />
+                    <path d="M760,195 L775,200 L785,205 L780,212 L765,210 Z" />
+                    <!-- Australia -->
+                    <path
+                        d="M720,290 L750,280 L770,285 L790,295 L800,310 L790,330 L770,340 L750,345 L730,340 L715,325 L710,305 Z"
+                    />
+                    <!-- New Zealand -->
+                    <path d="M820,340 L830,335 L835,345 L830,355 L820,350 Z" />
+                    <path d="M815,360 L825,358 L828,368 L820,372 Z" />
+                    <!-- Middle East -->
+                    <path
+                        d="M505,130 L520,125 L530,135 L525,150 L510,155 L500,148 Z"
+                    />
+                    <!-- Central Asia / Russia hint -->
+                    <path
+                        d="M510,40 L530,30 L560,25 L580,30 L600,25 L620,30 L640,28 L660,35 L680,40 L700,38 L720,42 L710,55 L690,50 L660,55 L630,50 L600,48 L570,50 L540,55 L520,50 Z"
+                    />
+                    <!-- Antarctica hint -->
+                    <path
+                        d="M100,480 L200,470 L300,465 L400,468 L500,470 L600,465 L700,468 L800,470 L880,475 L900,485 L880,495 L800,490 L700,492 L600,488 L500,490 L400,488 L300,490 L200,488 L120,492 Z"
+                    />
+                    <!-- Madagascar -->
+                    <path d="M475,290 L485,285 L490,300 L485,315 L475,310 Z" />
+                    <!-- Sri Lanka -->
+                    <path d="M630,240 L638,238 L640,248 L635,255 Z" />
+                    <!-- Cuba / Caribbean -->
+                    <path d="M180,220 L200,215 L210,225 L205,235 L185,230 Z" />
+                    <!-- Mexico / Central America -->
+                    <path
+                        d="M155,240 L165,235 L175,245 L180,260 L170,270 L155,265 L148,252 Z"
+                    />
+                    <!-- Alaska -->
+                    <path d="M120,55 L150,40 L170,45 L165,60 L140,65 Z" />
+                </svg>
+
+                <!-- Data center nodes: 5 China + 9 worldwide -->
+                <div class="hero-dc" style="top: 10%; left: 73%"></div>
+                <!-- Beijing -->
+                <div class="hero-dc" style="top: 14%; left: 78%"></div>
+                <!-- Shanghai -->
+                <div class="hero-dc" style="top: 22%; left: 76%"></div>
+                <!-- Guangzhou -->
+                <div class="hero-dc" style="top: 18%; left: 66%"></div>
+                <!-- Chengdu -->
+                <div class="hero-dc" style="top: 24%; left: 77%"></div>
+                <!-- Shenzhen -->
+                <div class="hero-dc" style="top: 11%; left: 86%"></div>
+                <!-- Tokyo -->
+                <div class="hero-dc" style="top: 32%; left: 76%"></div>
+                <!-- Singapore -->
+                <div class="hero-dc" style="top: 30%; left: 65%"></div>
+                <!-- Mumbai -->
+                <div class="hero-dc" style="top: 24%; left: 52%"></div>
+                <!-- Dubai -->
+                <div class="hero-dc" style="top: 13%; left: 48%"></div>
+                <!-- Frankfurt -->
+                <div class="hero-dc" style="top: 11%; left: 43%"></div>
+                <!-- London -->
+                <div class="hero-dc" style="top: 14%; left: 10%"></div>
+                <!-- Silicon Valley -->
+                <div class="hero-dc" style="top: 18%; left: 18%"></div>
+                <!-- Virginia -->
+                <div class="hero-dc" style="top: 56%; left: 82%"></div>
+                <!-- Sydney -->
+
+                <!-- Signal packets: 32 divs for 16 bidirectional routes (12 global + 4 intra-China) -->
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+                <div class="hero-signal"></div>
+
+                <div class="hero-content">
+                    <div class="hero-badge">百度系统部 · 物理网络黑盒监控</div>
+                    <h1>nettools<br /><span>大规模物理网络监控工具集</span></h1>
+                    <p>
+                        成千上万的网络设备、海量的链路——一个 ping
+                        解决不了的问题，需要一套专业的工具。 nettools
+                        是百度内部跑了多年的黑盒监控工具集，现在开源了。
+                    </p>
+                    <div class="hero-links">
+                        <a
+                            href="https://github.com/baidu/nettools"
+                            class="btn btn-primary"
+                            target="_blank"
+                        >
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.73.083-.73 1.205.085 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.604-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.605-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12 24 5.37 18.63 0 12 0z"
+                                />
+                            </svg>
+                            GitHub
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="stat-value">500000+</div>
+                    <div class="stat-label">内部部署节点</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">2</div>
+                    <div class="stat-label">已开源工具</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">MIT</div>
+                    <div class="stat-label">开源协议</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">60000/800000</div>
+                    <div class="stat-label">
+                        单机 pps 探测上限, rawsocket/单五元组
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tool Index Bar -->
+            <div class="tool-index-bar">
+                <span>工具集：</span>
+                <a href="baize.html">baize（白泽）</a>
+                <a href="bitflip.html">bitflip / bitflip6</a>
+            </div>
+
+            <!-- baize -->
+            <div class="section" id="baize">
+                <div class="section-header">
+                    <div class="section-dot terracotta"></div>
+                    <h2>baize（白泽）— 毫秒级网络质量持续监控</h2>
+                    <span class="badge badge-new">最新发布</span>
+                    <a href="baize.html" class="guide-link">使用指南 →</a>
+                </div>
+
+                <p>
+                    baize
+                    是一个配置驱动、单进程双角色、为长期部署而设计的网络质量持续监控工具。默认每秒
+                    5000 个探测包，统计窗口可调至
+                    100ms，让偶发轻微丢包无处遁形。
+                </p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🔀</div>
+                        <h4>ECMP 全路径覆盖</h4>
+                        <p>
+                            确定性端口轮转算法，1000 个五元组同时探测，覆盖 ECMP
+                            哈希空间所有路径。丢包五元组直接定位故障设备和端口。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⏱️</div>
+                        <h4>无需时钟同步的单向丢包检测</h4>
+                        <p>
+                            每个探测包携带上一个时间窗口的发包数和起始端口对，Server
+                            端完整还原五元组。不需要 NTP，不需要维护 Client
+                            状态。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔍</div>
+                        <h4>互补比特翻转检测</h4>
+                        <p>
+                            4 种 Salt 填充模式，专门检测 TCP/UDP
+                            校验和发现不了的互补翻转。精确到哪个字节的哪一位被篡改。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>生产级性能</h4>
+                        <p>
+                            Raw IP Socket + BPF 过滤器 + 8 路并行读 +
+                            无锁设计。百度内部几千台机器上跑了多年。
+                        </p>
+                    </div>
+                </div>
+
+                <h3>典型场景</h3>
+                <div class="scenario-tags">
+                    <span class="scenario-tag">集群间 fullmesh 高频探测</span>
+                    <span class="scenario-tag">机房间链路监控</span>
+                    <span class="scenario-tag">混合云持续探测</span>
+                    <span class="scenario-tag">专线 SLA 监控</span>
+                    <span class="scenario-tag">网络改造保障</span>
+                    <span class="scenario-tag">故障回切验证</span>
+                </div>
+
+                <div class="tip">
+                    <strong>部署方式：</strong>一个 JSON 配置文件 +
+                    一个二进制文件。配合 Puppet/Ansible
+                    批量下发，几十台机器分分钟到位。日志按天轮转，pprof
+                    内置，线上排查不需要重新编译。
+                </div>
+            </div>
+
+            <!-- bitflip / bitflip6 -->
+            <div class="section" id="bitflip">
+                <div class="section-header">
+                    <div class="section-dot sage"></div>
+                    <h2>bitflip / bitflip6 — 丢包与比特翻转检测</h2>
+                    <span class="badge badge-stable">稳定版</span>
+                    <a href="bitflip.html" class="guide-link">使用指南 →</a>
+                </div>
+
+                <p>
+                    bitflip 是命令行驱动的高频 UDP
+                    探测工具，用于快速排查网络丢包和比特翻转。支持单向丢包检测和五元组级定位。bitflip6
+                    是其 IPv6 版本，使用方式完全一致。
+                </p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📡</div>
+                        <h4>单向丢包定位</h4>
+                        <p>
+                            Client 和 Server
+                            双端独立统计，对比两端数据即可判断丢包发生在正向路径还是回程路径，避免往返探测的误判。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🛡️</div>
+                        <h4>4 种 Salt 模式覆盖</h4>
+                        <p>
+                            全 1、全
+                            0、交替位、互补交替，覆盖所有比特翻转类型。互补交替模式专门针对
+                            TCP/IP Checksum 检测盲区。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h4>五元组级定位</h4>
+                        <p>
+                            自动覆盖 ECMP
+                            多路径，检测到丢包或改包时输出具体五元组。结合
+                            traceroute 拓扑，直接定位到故障设备和端口。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔄</div>
+                        <h4>IPv4 + IPv6 双栈</h4>
+                        <p>
+                            bitflip 覆盖 IPv4，bitflip6 覆盖
+                            IPv6。相同的参数格式，相同的使用体验。
+                        </p>
+                    </div>
+                </div>
+
+                <h3>快速体验</h3>
+                <pre
+                    style="
+                        background: #1a1a1a;
+                        border-radius: 8px;
+                        padding: 1rem 1.25rem;
+                        overflow-x: auto;
+                        margin: 0.75rem 0;
+                        font-size: 0.75rem;
+                        line-height: 1.6;
+                    "
+                >
+<code style="font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace; color: #E8E4DE;"><span style="color: #6B7280;"># 克隆并编译</span>
+<span style="color: #E8E4DE;">git clone https://github.com/baidu/nettools.git
+cd nettools && make build</span>
+
+<span style="color: #6B7280;"># 服务端</span>
+<span style="color: #E8E4DE;">./bitflip</span>
+
+<span style="color: #6B7280;"># 客户端 — 5000 pps 持续探测</span>
+<span style="color: #E8E4DE;">sudo ./bitflip</span> <span style="color: #D97757;">-r</span> <span style="color: #5B8A72;">client</span> <span style="color: #D97757;">-s</span> <span style="color: #5B8A72;">10.0.0.1</span></code></pre>
+
+                <div class="note">
+                    <strong>Note：</strong>Client 端需要
+                    <code
+                        style="
+                            background: #f5f3f0;
+                            border: 1px solid #e8e4de;
+                            border-radius: 4px;
+                            padding: 0.125rem 0.375rem;
+                            font-size: 0.75rem;
+                            color: #d97757;
+                        "
+                        >sudo</code
+                    >
+                    权限来设置 IP TOS/DSCP 值。
+                </div>
+            </div>
+
+            <!-- Comparison -->
+            <div class="section" id="compare">
+                <div class="section-header">
+                    <div class="section-dot slate"></div>
+                    <h2>baize vs bitflip：怎么选？</h2>
+                </div>
+
+                <table>
+                    <tr>
+                        <th></th>
+                        <th>bitflip / bitflip6</th>
+                        <th>baize</th>
+                    </tr>
+                    <tr>
+                        <td>配置方式</td>
+                        <td>命令行参数</td>
+                        <td>JSON 配置文件</td>
+                    </tr>
+                    <tr>
+                        <td>运行模式</td>
+                        <td>单角色</td>
+                        <td>单进程双角色</td>
+                    </tr>
+                    <tr>
+                        <td>适用场景</td>
+                        <td>临时排查、快速诊断</td>
+                        <td>长期部署、持续监控</td>
+                    </tr>
+                    <tr>
+                        <td>日志管理</td>
+                        <td>stdout / stderr</td>
+                        <td>按天轮转 + 自动清理</td>
+                    </tr>
+                    <tr>
+                        <td>运维集成</td>
+                        <td>手动运行</td>
+                        <td>配合配置管理系统自动化</td>
+                    </tr>
+                </table>
+
+                <div class="tip">
+                    <strong>简单来说：</strong>排查问题用 bitflip，上线监控用
+                    baize。底层引擎是同一套，选哪个只看部署方式。
+                </div>
+            </div>
+
+            <!-- Philosophy -->
+            <div class="philosophy">
+                <blockquote>
+                    网络监控不是能不能做的问题，是做得够不够细致的问题。<br />每一条链路、每一个端口、每一个场景，都值得被监控。
+                </blockquote>
+            </div>
+
+            <!-- Footer -->
+            <p class="footer">
+                nettools · Baidu System Department ·
+                <a href="https://github.com/baidu/nettools" target="_blank"
+                    >github.com/baidu/nettools</a
+                ><br />
+                MIT License · 持续更新中
+            </p>
+        </div>
+    </body>
+</html>

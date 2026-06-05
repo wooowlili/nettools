@@ -6,6 +6,8 @@ bitflip6
 !bitflip6/
 baize
 !baize/
+lidar
+!lidar/
 
 # Test and coverage artifacts
 coverage.html

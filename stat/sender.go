@@ -147,6 +147,8 @@ func (s *udpStat) statOnce() {
 			LossRate:          sr.lossRate,
 			AvgRTT:            sr.rtt,
 			MaxRTT:            sr.maxRTT,
+			SynAckCount:       sr.synack,
+			RSTCount:          sr.rst,
 			LossPorts:         sr.lossPorts,
 			BitflipPorts:      sr.bitflipPorts,
 			LossPortsCount:    sr.lossPortsCount,
@@ -214,6 +216,10 @@ func (s *udpStat) Delete(seq uint64, ts int64) { s.bkts.delete(seq, ts) }
 
 func (s *udpStat) Received(seq uint64, ts, rtt int64, hasBitflip bool) {
 	s.bkts.received(seq, ts, rtt, hasBitflip)
+}
+
+func (s *udpStat) ReceivedRST(seq uint64, ts, rtt int64) {
+	s.bkts.receivedRST(seq, ts, rtt)
 }
 
 func (s *udpStat) ReceivedAndFix(seq uint64, ts, rtt int64, lastSentCount uint32, lastStartSrcPort, lastStartDstPort uint16, hasBitflip bool) {
