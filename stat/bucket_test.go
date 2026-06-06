@@ -1,9 +1,11 @@
 package stat
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1104,6 +1106,406 @@ func TestNewServerStat(t *testing.T) {
 		t.Error("expected serverSide to be true")
 	}
 	ud.statOnce()
+}
+
+// ---------------------------------------------------------------------------
+// GetNextPorts
+// ---------------------------------------------------------------------------
+
+func TestGetNextPorts(t *testing.T) {
+	tests := []struct {
+		name              string
+		clientPort        uint16
+		serverPort        uint16
+		clientPortRange   PortRange
+		serverPortRange   PortRange
+		wantClient        uint16
+		wantServer        uint16
+	}{
+		{
+			name:            "increment server port",
+			clientPort:      43500,
+			serverPort:      43500,
+			clientPortRange: PortRange{Min: 43500, Max: 43599},
+			serverPortRange: PortRange{Min: 43500, Max: 43509},
+			wantClient:      43500,
+			wantServer:      43501,
+		},
+		{
+			name:            "server port wraps increments client",
+			clientPort:      43500,
+			serverPort:      43509,
+			clientPortRange: PortRange{Min: 43500, Max: 43599},
+			serverPortRange: PortRange{Min: 43500, Max: 43509},
+			wantClient:      43501,
+			wantServer:      43500,
+		},
+		{
+			name:            "both wrap",
+			clientPort:      43599,
+			serverPort:      43509,
+			clientPortRange: PortRange{Min: 43500, Max: 43599},
+			serverPortRange: PortRange{Min: 43500, Max: 43509},
+			wantClient:      43500,
+			wantServer:      43500,
+		},
+		{
+			name:            "single server port",
+			clientPort:      100,
+			serverPort:      200,
+			clientPortRange: PortRange{Min: 100, Max: 200},
+			serverPortRange: PortRange{Min: 200, Max: 200},
+			wantClient:      101,
+			wantServer:      200,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotClient, gotServer := GetNextPorts(tt.clientPort, tt.serverPort, tt.clientPortRange, tt.serverPortRange)
+			if gotClient != tt.wantClient || gotServer != tt.wantServer {
+				t.Errorf("GetNextPorts(%d, %d) = (%d, %d), want (%d, %d)",
+					tt.clientPort, tt.serverPort, gotClient, gotServer, tt.wantClient, tt.wantServer)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// receivedRST / updateReceivedRST
+// ---------------------------------------------------------------------------
+
+func TestBucketReceivedRSTExistingSeq(t *testing.T) {
+	bk := newBucket(1, time.Second, 100, false)
+	bk.put(100, 200, 1, 1000)
+	bk.receivedRST(1, 500)
+
+	bk.RLock()
+	r := bk.requests[1]
+	bk.RUnlock()
+
+	if !r.isRst {
+		t.Error("isRst should be true after receivedRST")
+	}
+	if r.rtt != 500 {
+		t.Errorf("rtt = %d, want 500", r.rtt)
+	}
+}
+
+func TestBucketReceivedRSTOutOfOrder(t *testing.T) {
+	// receivedRST without prior put — should create new entry
+	bk := newBucket(1, time.Second, 100, false)
+	bk.receivedRST(42, 999)
+
+	bk.RLock()
+	r, ok := bk.requests[42]
+	bk.RUnlock()
+
+	if !ok {
+		t.Fatal("expected request for seq 42")
+	}
+	if !r.isRst {
+		t.Error("isRst should be true")
+	}
+	if r.rtt != 999 {
+		t.Errorf("rtt = %d, want 999", r.rtt)
+	}
+}
+
+func TestBucketUpdateReceivedRSTNotFound(t *testing.T) {
+	bk := newBucket(1, time.Second, 100, false)
+	found := bk.updateReceivedRST(999, 100)
+	if found {
+		t.Error("updateReceivedRST should return false for missing seq")
+	}
+}
+
+func TestBucketUpdateReceivedRSTFound(t *testing.T) {
+	bk := newBucket(1, time.Second, 100, false)
+	bk.put(100, 200, 1, 1000)
+	found := bk.updateReceivedRST(1, 500)
+	if !found {
+		t.Error("updateReceivedRST should return true for existing seq")
+	}
+
+	bk.RLock()
+	r := bk.requests[1]
+	bk.RUnlock()
+
+	if !r.isRst {
+		t.Error("isRst should be true")
+	}
+}
+
+func TestBucketsReceivedRST(t *testing.T) {
+	bs := newTestBuckets()
+	ts := time.Now().UnixNano()
+
+	bs.put(100, 200, 1, ts)
+	bs.receivedRST(1, ts, 0)
+
+	oldest := bs.oldest()
+	if oldest == nil {
+		t.Fatal("expected bucket")
+	}
+
+	sr := oldest.stat()
+	if sr.rst != 1 {
+		t.Errorf("rst = %d, want 1", sr.rst)
+	}
+	if sr.synack != 0 {
+		t.Errorf("synack = %d, want 0", sr.synack)
+	}
+	if sr.received != 1 {
+		t.Errorf("received = %d, want 1 (RST is still received)", sr.received)
+	}
+}
+
+func TestBucketsReceivedRSTCreatesBucket(t *testing.T) {
+	bs := newTestBuckets()
+	ts := time.Now().UnixNano()
+	// receivedRST without prior put — should create bucket
+	bs.receivedRST(1, ts, 0)
+
+	oldest := bs.oldest()
+	if oldest == nil {
+		t.Fatal("expected bucket to be created by receivedRST")
+	}
+}
+
+func TestBucketsReceivedRSTPrevBucket(t *testing.T) {
+	bs := newTestBuckets()
+	span := time.Second
+	now := time.Now()
+
+	ts1 := now.Add(-1 * span).UnixNano()
+	ts2 := now.UnixNano()
+
+	// Put in bucket ts1/span
+	bs.put(100, 200, 1, ts1)
+
+	// receivedRST with timestamp in next span — should find seq 1 in prev bucket
+	bs.receivedRST(1, ts2, 0)
+
+	bucketID1 := ts1 / int64(span)
+	bs.RLock()
+	b := bs.buckets[bucketID1]
+	bs.RUnlock()
+
+	if b == nil {
+		t.Fatal("expected bucket for ts1")
+	}
+	sr := b.stat()
+	if sr.rst != 1 {
+		t.Errorf("rst = %d, want 1", sr.rst)
+	}
+}
+
+func TestStatReceivedRST(t *testing.T) {
+	logger := newTestLogger()
+	s := NewStat("1.2.3.4", "5.6.7.8",
+		PortRange{Min: 43500, Max: 43599}, PortRange{Min: 43500, Max: 43509},
+		100, time.Second, 100*time.Millisecond, NewLogSender(logger, false))
+
+	ts := time.Now().UnixNano()
+	s.Put(43500, 43500, 1, ts)
+	s.ReceivedRST(1, ts, 0)
+
+	ud := s.(*udpStat)
+	ud.statOnce()
+}
+
+func TestBucketStatWithRSTAndSynAck(t *testing.T) {
+	bk := newBucket(1, time.Second, 100, false)
+	bk.put(100, 200, 1, 1000)
+	bk.put(100, 200, 2, 1000)
+	bk.put(100, 200, 3, 1000)
+	bk.received(1, 100, false)   // SYN-ACK
+	bk.receivedRST(2, 200)    // RST
+	// seq 3: timeout (no response)
+
+	sr := bk.stat()
+	if sr.sent != 3 {
+		t.Errorf("sent = %d, want 3", sr.sent)
+	}
+	if sr.received != 2 {
+		t.Errorf("received = %d, want 2", sr.received)
+	}
+	if sr.synack != 1 {
+		t.Errorf("synack = %d, want 1", sr.synack)
+	}
+	if sr.rst != 1 {
+		t.Errorf("rst = %d, want 1", sr.rst)
+	}
+	if sr.loss != 1 {
+		t.Errorf("loss = %d, want 1", sr.loss)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// computeServerLossPorts
+// ---------------------------------------------------------------------------
+
+func TestComputeServerLossPorts(t *testing.T) {
+	logger := newTestLogger()
+	s := NewServerStat("1.2.3.4", "5.6.7.8",
+		PortRange{Min: 43500, Max: 43599}, PortRange{Min: 43500, Max: 43509},
+		100, time.Second, 100*time.Millisecond, NewLogSender(logger, false))
+
+	ud := s.(*udpStat)
+	span := time.Second
+	now := time.Now()
+
+	// Create a bucket and mark it as fixed with known start ports
+	bucketID := now.UnixNano()/int64(span) - 1
+	ud.bkts.Lock()
+	prevBk := newBucket(bucketID, span, 100, true)
+	prevBk.packetCount = 5
+	prevBk.packetCountFixed = true
+	prevBk.startSrcPort = 43500
+	prevBk.startDstPort = 43500
+	// Receive some but not all expected packets
+	prevBk.received(1, 500, false)
+	prevBk.requests[1] = request{clientPort: 43501, serverPort: 43500, rtt: 500}
+	ud.bkts.buckets[bucketID] = prevBk
+	ud.bkts.Unlock()
+
+	// Current bucket
+	ts := now.UnixNano()
+	s.ReceivedAndFix(100, ts, 300, 5, 43500, 43500, false)
+
+	// Trigger statOnce to exercise computeServerLossPorts
+	ud.bkts.RLock()
+	b := ud.bkts.buckets[bucketID]
+	ud.bkts.RUnlock()
+
+	if b != nil {
+		lossPorts, lossPortsCount := ud.computeServerLossPorts(b)
+		if lossPorts == nil {
+			t.Log("computeServerLossPorts returned nil (expected if no losses detected)")
+		} else {
+			t.Logf("lossPorts: %v, lossPortsCount: %v", lossPorts, lossPortsCount)
+		}
+	}
+}
+
+func TestComputeServerLossPortsNoFix(t *testing.T) {
+	logger := newTestLogger()
+	s := NewServerStat("1.2.3.4", "5.6.7.8",
+		PortRange{Min: 43500, Max: 43599}, PortRange{Min: 43500, Max: 43509},
+		100, time.Second, 100*time.Millisecond, NewLogSender(logger, false))
+
+	ud := s.(*udpStat)
+	span := time.Second
+	bucketID := time.Now().UnixNano()/int64(span) - 1
+
+	// Not fixed — computeServerLossPorts should return nil
+	ud.bkts.Lock()
+	bk := newBucket(bucketID, span, 100, true)
+	ud.bkts.buckets[bucketID] = bk
+	ud.bkts.Unlock()
+
+	lp, lpc := ud.computeServerLossPorts(bk)
+	if lp != nil || lpc != nil {
+		t.Errorf("expected nil for unfixed bucket, got %v %v", lp, lpc)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LogSender
+// ---------------------------------------------------------------------------
+
+func TestLogSenderClientNoLoss(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	s := NewLogSender(logger, false)
+
+	s.Send(StatResult{
+		Timestamp:  time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		ClientAddr: "1.2.3.4",
+		ServerAddr: "5.6.7.8",
+		Sent:       10,
+		Received:   10,
+		Loss:       0,
+	})
+
+	output := buf.String()
+	if !strings.Contains(output, "[INFO]") {
+		t.Errorf("expected [INFO], got: %s", output)
+	}
+	if !strings.Contains(output, "avg rtt") {
+		t.Errorf("expected 'avg rtt' in output, got: %s", output)
+	}
+}
+
+func TestLogSenderClientWithLoss(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	s := NewLogSender(logger, true)
+
+	s.Send(StatResult{
+		Timestamp:  time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		ClientAddr: "1.2.3.4",
+		ServerAddr: "5.6.7.8",
+		Sent:       10,
+		Received:   8,
+		Loss:       2,
+		LossPorts:  map[int]int{43500: 43500},
+	})
+
+	output := buf.String()
+	if !strings.Contains(output, "[WARN]") {
+		t.Errorf("expected [WARN], got: %s", output)
+	}
+	if !strings.Contains(output, "loss ports:") {
+		t.Errorf("expected 'loss ports' in verbose mode, got: %s", output)
+	}
+}
+
+func TestLogSenderServerNoLoss(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	s := NewLogSender(logger, false)
+
+	s.Send(StatResult{
+		Timestamp:  time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		ClientAddr: "1.2.3.4",
+		ServerAddr: "5.6.7.8",
+		ServerSide: true,
+		Sent:       10,
+		Received:   10,
+		Loss:       0,
+	})
+
+	output := buf.String()
+	if !strings.Contains(output, "[INFO]") {
+		t.Errorf("expected [INFO], got: %s", output)
+	}
+}
+
+func TestLogSenderServerWithLoss(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	s := NewLogSender(logger, true)
+
+	s.Send(StatResult{
+		Timestamp:  time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		ClientAddr: "1.2.3.4",
+		ServerAddr: "5.6.7.8",
+		ServerSide: true,
+		Sent:       10,
+		Received:   7,
+		Loss:       3,
+		LossPorts:  map[int]int{43500: 43500},
+	})
+
+	output := buf.String()
+	if !strings.Contains(output, "[WARN]") {
+		t.Errorf("expected [WARN], got: %s", output)
+	}
+	if !strings.Contains(output, "loss ports:") {
+		t.Errorf("expected 'loss ports' in verbose server mode, got: %s", output)
+	}
 }
 
 func TestServerStatReceivedAndFixEndToEnd(t *testing.T) {
