@@ -347,7 +347,7 @@
         <h1>lidar 使用指南</h1>
       </div>
       <p class="subtitle">nettools · TCP SYN 网络可达性探测工具</p>
-      <p class="diagram-desc"><b>Usage Guide</b> — 涵盖原理、安装、命令行参数及典型使用场景。</p>
+      <p class="diagram-desc"><b>Usage Guide</b> — 涵盖原理、安装、命令行参数、配置文件及典型使用场景。</p>
       <a class="back-link" href="index.html">&larr; 返回首页</a>
     </div>
 
@@ -362,9 +362,10 @@
         <li><a href="#install">5. 安装</a></li>
         <li><a href="#quickstart">6. 快速开始</a></li>
         <li><a href="#params">7. 命令行参数详解</a></li>
-        <li><a href="#output">8. 输出解读</a></li>
-        <li><a href="#examples">9. 使用示例</a></li>
-        <li><a href="#faq">10. FAQ</a></li>
+        <li><a href="#config">8. 配置文件</a></li>
+        <li><a href="#output">9. 输出解读</a></li>
+        <li><a href="#examples">10. 使用示例</a></li>
+        <li><a href="#faq">11. FAQ</a></li>
       </ul>
     </div>
 
@@ -547,7 +548,7 @@
         <tr><td>探测协议</td><td>UDP</td><td>UDP</td><td>TCP SYN</td></tr>
         <tr><td>是否需要服务端</td><td>需要（bitflip server）</td><td>需要（baize server）</td><td>不需要</td></tr>
         <tr><td>探测内容</td><td>丢包 + bitflip</td><td>丢包 + bitflip</td><td>可达性（SYN-ACK/RST/Timeout）</td></tr>
-        <tr><td>配置方式</td><td>命令行参数</td><td>JSON 配置文件</td><td>命令行参数</td></tr>
+        <tr><td>配置方式</td><td>命令行参数</td><td>JSON 配置文件</td><td>命令行参数 / JSON 配置文件</td></tr>
         <tr><td>适用场景</td><td>UDP 质量监控</td><td>长期持续监控</td><td>快速可达性探测</td></tr>
         <tr><td>运行平台</td><td>Linux / macOS</td><td>Linux / macOS</td><td>Linux / macOS</td></tr>
       </table>
@@ -609,6 +610,13 @@
       <h3>4. 指定发送数量</h3>
       <pre><code><span class="comment"># 发送 1000 个探测包后自动停止</span>
 <span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">-n</span> <span class="value">1000</span></code></pre>
+
+      <h3>5. 使用配置文件</h3>
+      <pre><code><span class="comment"># 用配置文件启动（适合重复性探测任务）</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-c</span> <span class="value">lidar.json</span>
+
+<span class="comment"># 配置文件 + 命令行覆盖（临时改端口）</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-c</span> <span class="value">lidar.json</span> <span class="flag">-p</span> <span class="value">443</span></code></pre>
     </div>
 
     <!-- Section 7: Params -->
@@ -639,11 +647,76 @@
       </div>
     </div>
 
-    <!-- Section 8: Output -->
+    <!-- Section 8: Config File -->
+    <div class="section" id="config">
+      <div class="section-title">
+        <div class="section-dot teal"></div>
+        <h3>8. 配置文件</h3>
+      </div>
+      <p>lidar 支持通过 JSON 配置文件指定参数，适合重复性探测任务和自动化场景。使用 <code class="inline-code">-c</code> 指定配置文件路径。</p>
+
+      <h3>优先级</h3>
+      <p>当配置文件和命令行参数同时提供时：<strong>命令行参数优先</strong>，会覆盖配置文件中的同名项。未在命令行中显式指定的参数使用配置文件中的值。</p>
+      <table>
+        <tr><th>优先级</th><th>来源</th><th>说明</th></tr>
+        <tr><td>高</td><td>命令行参数</td><td>显式指定的 <code class="inline-code">-p</code>、<code class="inline-code">--rate</code> 等会覆盖配置文件</td></tr>
+        <tr><td>中</td><td>JSON 配置文件</td><td><code class="inline-code">-c lidar.json</code> 指定，未覆盖的字段使用文件值</td></tr>
+        <tr><td>低</td><td>代码默认值</td><td>配置文件和命令行都未指定时使用默认值</td></tr>
+      </table>
+
+      <h3>配置文件格式</h3>
+      <pre><code>{
+  <span class="key">"target_addrs"</span>:     <span class="value">"10.0.0.1,10.0.0.2"</span>,
+  <span class="key">"server_port"</span>:      <span class="value">80</span>,
+  <span class="key">"local_addr"</span>:       <span class="value">""</span>,
+  <span class="key">"local_port"</span>:       <span class="value">54321</span>,
+  <span class="key">"local_port_count"</span>: <span class="value">100</span>,
+  <span class="key">"rate"</span>:             <span class="value">10</span>,
+  <span class="key">"span"</span>:             <span class="value">"1s"</span>,
+  <span class="key">"delay"</span>:            <span class="value">"3s"</span>,
+  <span class="key">"count"</span>:            <span class="value">0</span>,
+  <span class="key">"send_duration"</span>:    <span class="value">"0s"</span>,
+  <span class="key">"interface"</span>:        <span class="value">""</span>,
+  <span class="key">"verbose"</span>:          <span class="value">false</span>
+}</code></pre>
+
+      <h3>配置字段说明</h3>
+      <table>
+        <tr><th>字段</th><th>类型</th><th>对应命令行参数</th><th>说明</th></tr>
+        <tr><td><code class="inline-code">target_addrs</code></td><td>string</td><td><code class="inline-code">-t</code></td><td>目标 IP 地址，逗号分隔</td></tr>
+        <tr><td><code class="inline-code">server_port</code></td><td>int</td><td><code class="inline-code">-p</code></td><td>目标 TCP 端口</td></tr>
+        <tr><td><code class="inline-code">local_addr</code></td><td>string</td><td><code class="inline-code">-l</code></td><td>源 IP 地址（空字符串自动检测）</td></tr>
+        <tr><td><code class="inline-code">local_port</code></td><td>int</td><td><code class="inline-code">--local-port</code></td><td>源端口起始值</td></tr>
+        <tr><td><code class="inline-code">local_port_count</code></td><td>int</td><td><code class="inline-code">--local-port-count</code></td><td>源端口数量</td></tr>
+        <tr><td><code class="inline-code">rate</code></td><td>int</td><td><code class="inline-code">--rate</code></td><td>每秒发送探测包数（pps）</td></tr>
+        <tr><td><code class="inline-code">span</code></td><td>string</td><td><code class="inline-code">-s</code></td><td>统计报告间隔（如 "1s"、"5s"）</td></tr>
+        <tr><td><code class="inline-code">delay</code></td><td>string</td><td><code class="inline-code">--delay</code></td><td>首次统计前的等待时间</td></tr>
+        <tr><td><code class="inline-code">count</code></td><td>int</td><td><code class="inline-code">-n</code></td><td>最大发送数量（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">send_duration</code></td><td>string</td><td><code class="inline-code">-d</code></td><td>最大发送时长（如 "30s"、"5m"）</td></tr>
+        <tr><td><code class="inline-code">interface</code></td><td>string</td><td><code class="inline-code">-i</code></td><td>出接口名称（空字符串自动检测）</td></tr>
+        <tr><td><code class="inline-code">verbose</code></td><td>bool</td><td><code class="inline-code">-v</code></td><td>打印丢包的详细端口信息</td></tr>
+      </table>
+
+      <h3>使用方式</h3>
+      <pre><code><span class="comment"># 仅使用配置文件</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-c</span> <span class="value">lidar.json</span>
+
+<span class="comment"># 配置文件 + 命令行覆盖（临时调整端口为 443）</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-c</span> <span class="value">lidar.json</span> <span class="flag">-p</span> <span class="value">443</span>
+
+<span class="comment"># 配置文件 + 命令行覆盖（临时调高速率）</span>
+<span class="cmd">sudo ./lidar</span> <span class="flag">-c</span> <span class="value">lidar.json</span> <span class="flag">--rate</span> <span class="value">100</span> <span class="flag">-d</span> <span class="value">30s</span></code></pre>
+
+      <div class="tip">
+        <strong>Tip：</strong>完整示例配置文件见 <code class="inline-code">cmd/lidar/lidar.example.json</code>。可以将常用参数写在配置文件中，运行时通过命令行临时覆盖需要调整的字段。
+      </div>
+    </div>
+
+    <!-- Section 9: Output -->
     <div class="section" id="output">
       <div class="section-title">
         <div class="section-dot sage"></div>
-        <h3>8. 输出解读</h3>
+        <h3>9. 输出解读</h3>
       </div>
 
       <h3>启动日志</h3>
@@ -680,11 +753,11 @@
 <span class="value">2026/06/05 21:37:18 [WARN]</span> 21:37:15, [192.168.1.14 -&gt; 74.48.173.243], timeout ports: map[54322-80:1 54325-80:1]</span></code></pre>
     </div>
 
-    <!-- Section 9: Examples -->
+    <!-- Section 10: Examples -->
     <div class="section" id="examples">
       <div class="section-title">
         <div class="section-dot terracotta"></div>
-        <h3>9. 使用示例</h3>
+        <h3>10. 使用示例</h3>
       </div>
 
       <h3>机房内服务器可达性检查</h3>
@@ -715,11 +788,11 @@
 <span class="cmd">sudo ./lidar</span> <span class="flag">-t</span> <span class="value">10.0.0.2</span> <span class="flag">-p</span> <span class="value">80</span> <span class="flag">--local-port</span> <span class="value">40000</span> <span class="flag">--local-port-count</span> <span class="value">500</span> <span class="flag">--rate</span> <span class="value">500</span> <span class="flag">-d</span> <span class="value">60s</span></code></pre>
     </div>
 
-    <!-- Section 10: FAQ -->
+    <!-- Section 11: FAQ -->
     <div class="section" id="faq">
       <div class="section-title">
         <div class="section-dot terracotta"></div>
-        <h3>10. FAQ</h3>
+        <h3>11. FAQ</h3>
       </div>
 
       <h3>Q: lidar 和 ping 有什么区别?</h3>

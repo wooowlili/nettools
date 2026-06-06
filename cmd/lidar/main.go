@@ -5,11 +5,13 @@
 // Usage:
 //
 //	lidar -t 10.0.0.1,10.0.0.2 -p 80
-//	lidar -t 192.168.1.0/24 -n 1000 -d 10s
+//	lidar -c lidar.json
+//	lidar -c lidar.json -p 443   # CLI overrides config file
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -24,8 +26,25 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// lidarFileConfig maps the JSON config file fields.
+type lidarFileConfig struct {
+	TargetAddrs    string `json:"target_addrs"`
+	ServerPort     int    `json:"server_port"`
+	LocalAddr      string `json:"local_addr"`
+	LocalPort      int    `json:"local_port"`
+	LocalPortCount int    `json:"local_port_count"`
+	Rate           int    `json:"rate"`
+	Span           string `json:"span"`
+	Delay          string `json:"delay"`
+	Count          int    `json:"count"`
+	SendDuration   string `json:"send_duration"`
+	Interface      string `json:"interface"`
+	Verbose        bool   `json:"verbose"`
+}
+
 func main() {
 	var (
+		configFile     string
 		targets        string
 		port           int
 		localAddr      string
@@ -40,14 +59,15 @@ func main() {
 		iface          string
 	)
 
+	pflag.StringVarP(&configFile, "config", "c", "", "Path to JSON config file")
 	pflag.StringVarP(&targets, "targets", "t", "", "Comma-separated target IP addresses")
-	pflag.IntVarP(&port, "port", "p", 22, "Target TCP port")
+	pflag.IntVarP(&port, "port", "p", 0, "Target TCP port (default: 22)")
 	pflag.StringVarP(&localAddr, "local-addr", "l", "", "Source IP address (auto-detected if empty)")
-	pflag.IntVar(&localPort, "local-port", 54321, "Base source port")
-	pflag.IntVar(&localPortCount, "local-port-count", 100, "Number of consecutive source ports")
-	pflag.IntVar(&rateValue, "rate", 10, "Packets per second")
-	pflag.DurationVarP(&span, "span", "s", time.Second, "Statistics reporting interval")
-	pflag.DurationVar(&delay, "delay", 3*time.Second, "Delay before first stats report")
+	pflag.IntVar(&localPort, "local-port", 0, "Base source port (default: 54321)")
+	pflag.IntVar(&localPortCount, "local-port-count", 0, "Number of consecutive source ports (default: 100)")
+	pflag.IntVar(&rateValue, "rate", 0, "Packets per second (default: 10)")
+	pflag.DurationVarP(&span, "span", "s", 0, "Statistics reporting interval (default: 1s)")
+	pflag.DurationVar(&delay, "delay", 0, "Delay before first stats report (default: 3s)")
 	pflag.IntVarP(&count, "count", "n", 0, "Max packets to send (0 = unlimited)")
 	pflag.DurationVarP(&duration, "duration", "d", 0, "Max send duration (0 = unlimited)")
 	pflag.StringVarP(&iface, "interface", "i", "", "Outgoing interface name (auto-detected if empty)")
@@ -56,25 +76,90 @@ func main() {
 	pflag.Parse()
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	if targets == "" {
-		fmt.Fprintln(os.Stderr, "error: --targets/-t is required")
-		pflag.Usage()
-		os.Exit(1)
+	// Load config file if specified.
+	var fileCfg lidarFileConfig
+	if configFile != "" {
+		data, err := os.ReadFile(configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "read config %s: %v\n", configFile, err)
+			os.Exit(1)
+		}
+		if err := json.Unmarshal(data, &fileCfg); err != nil {
+			fmt.Fprintf(os.Stderr, "parse config %s: %v\n", configFile, err)
+			os.Exit(1)
+		}
 	}
 
+	// Build Config from file values first.
 	cfg := &lidar.Config{
-		TargetAddrs:    splitNonEmpty(targets),
-		ServerPort:     port,
-		LocalAddr:      localAddr,
-		LocalPort:      localPort,
-		LocalPortCount: localPortCount,
-		Verbose:        verbose,
-		Rate:           rateValue,
-		Span:           span,
-		Delay:          delay,
-		Count:          count,
-		SendDuration:   duration,
-		Interface:      iface,
+		TargetAddrs:    splitNonEmpty(fileCfg.TargetAddrs),
+		ServerPort:     fileCfg.ServerPort,
+		LocalAddr:      fileCfg.LocalAddr,
+		LocalPort:      fileCfg.LocalPort,
+		LocalPortCount: fileCfg.LocalPortCount,
+		Rate:           fileCfg.Rate,
+		Span:           parseDuration(fileCfg.Span),
+		Delay:          parseDuration(fileCfg.Delay),
+		Count:          fileCfg.Count,
+		SendDuration:   parseDuration(fileCfg.SendDuration),
+		Interface:      fileCfg.Interface,
+		Verbose:        fileCfg.Verbose,
+	}
+
+	// Override with explicitly set CLI flags.
+	pflag.Visit(func(f *pflag.Flag) {
+		switch f.Name {
+		case "targets":
+			cfg.TargetAddrs = splitNonEmpty(targets)
+		case "port":
+			cfg.ServerPort = port
+		case "local-addr":
+			cfg.LocalAddr = localAddr
+		case "local-port":
+			cfg.LocalPort = localPort
+		case "local-port-count":
+			cfg.LocalPortCount = localPortCount
+		case "rate":
+			cfg.Rate = rateValue
+		case "span":
+			cfg.Span = span
+		case "delay":
+			cfg.Delay = delay
+		case "count":
+			cfg.Count = count
+		case "duration":
+			cfg.SendDuration = duration
+		case "interface":
+			cfg.Interface = iface
+		case "verbose":
+			cfg.Verbose = verbose
+		}
+	})
+
+	// Fill defaults for zero-valued fields.
+	if cfg.ServerPort == 0 {
+		cfg.ServerPort = 22
+	}
+	if cfg.LocalPort == 0 {
+		cfg.LocalPort = 54321
+	}
+	if cfg.LocalPortCount == 0 {
+		cfg.LocalPortCount = 100
+	}
+	if cfg.Rate == 0 {
+		cfg.Rate = 10
+	}
+	if cfg.Span == 0 {
+		cfg.Span = time.Second
+	}
+	if cfg.Delay == 0 {
+		cfg.Delay = 3 * time.Second
+	}
+
+	if len(cfg.TargetAddrs) == 0 {
+		fmt.Fprintln(os.Stderr, "error: --targets/-t or config file target_addrs is required")
+		pflag.Usage()
+		os.Exit(1)
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -104,6 +189,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "scanner error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid duration %q: %v\n", s, err)
+		os.Exit(1)
+	}
+	return d
 }
 
 func splitNonEmpty(s string) []string {

@@ -1,0 +1,14 @@
+{
+  "target_addrs": "10.0.0.1,10.0.0.2",
+  "server_port": 80,
+  "local_addr": "",
+  "local_port": 54321,
+  "local_port_count": 100,
+  "rate": 10,
+  "span": "1s",
+  "delay": "3s",
+  "count": 0,
+  "send_duration": "0s",
+  "interface": "",
+  "verbose": false
+}

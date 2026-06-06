@@ -7,6 +7,16 @@ on:
     branches: [main]
 
 jobs:
+  go_badges:
+    runs-on: ubuntu-latest
+    name: A job to generate badges
+    steps:
+      - uses: actions/checkout@v2
+      - id: badges
+        uses: jacobkring/go-badges@v1.10.4
+        with:
+          report-card: ${{ steps.goreportcard.outputs.reportCard }}
+          coverage: ${{ steps.coverage.outputs.coverage }}
   build:
     runs-on: ubuntu-latest
     steps:

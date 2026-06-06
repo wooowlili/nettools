@@ -4,9 +4,10 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.26-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/baidu/nettools)](https://goreportcard.com/report/github.com/baidu/nettools)
 [![Go Reference](https://pkg.go.dev/badge/github.com/baidu/nettools.svg)](https://pkg.go.dev/github.com/baidu/nettools)
 [![CI](https://github.com/baidu/nettools/actions/workflows/ci.yml/badge.svg)](https://github.com/baidu/nettools/actions/workflows/ci.yml)
+<!---go-badges-coverage-->
+<!---go-badges-report-card-->
 
 A suite of network diagnostic tools developed by Baidu's physical network black-box monitoring team, including:
 - **bitflip**: Detects packet loss and bit-flip errors in large-scale physical networks.
