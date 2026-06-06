@@ -14,6 +14,7 @@ import (
 	"github.com/baidu/nettools/sonar6/config"
 	"github.com/baidu/nettools/sonar6/server"
 	"github.com/baidu/nettools/stat"
+	"github.com/baidu/nettools/version"
 	"github.com/spf13/pflag"
 	"go.uber.org/ratelimit"
 )
@@ -47,7 +48,12 @@ func main() {
 	pflag.DurationVar(&delay, "delay", 3*time.Second, "Delay before processing stats (waiting for in-flight packets)")
 	pflag.BoolVar(&verbose, "verbose", false, "Print per-port loss details on packet loss")
 
+	showVersion := pflag.BoolP("version", "V", false, "Print version and exit")
 	pflag.Parse()
+	if *showVersion {
+		fmt.Println(version.String())
+		return
+	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	cpr, err := config.ParsePortRange(clientPorts)

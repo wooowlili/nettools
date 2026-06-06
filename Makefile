@@ -10,6 +10,11 @@ BINARYBA := baize
 COVERAGE_FILE := coverage.out
 COVERAGE_HTML := coverage.html
 
+VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+DATE     := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+LDFLAGS  := -s -w -X github.com/baidu/nettools/version.Version=$(VERSION) -X github.com/baidu/nettools/version.Commit=$(COMMIT) -X github.com/baidu/nettools/version.Date=$(DATE)
+
 # Colors for terminal output
 COLOR_RESET  := \033[0m
 COLOR_BOLD   := \033[1m
@@ -26,13 +31,13 @@ prepare:
 # make compile
 compile: build build6 build-baize
 build:
-	go build -o $(HOMEDIR)/$(BINARY) ./cmd/bitflip/
+	go build -ldflags "$(LDFLAGS)" -o $(HOMEDIR)/$(BINARY) ./cmd/bitflip/
 
 build6:
-	go build -o $(HOMEDIR)/$(BINARY6) ./cmd/bitflip6/
+	go build -ldflags "$(LDFLAGS)" -o $(HOMEDIR)/$(BINARY6) ./cmd/bitflip6/
 
 build-baize:
-	go build -o $(HOMEDIR)/$(BINARYBA) ./cmd/baize/
+	go build -ldflags "$(LDFLAGS)" -o $(HOMEDIR)/$(BINARYBA) ./cmd/baize/
 
 ## test: Run all tests
 test: prepare

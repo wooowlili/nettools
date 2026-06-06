@@ -23,6 +23,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/baidu/nettools/lidar"
+	"github.com/baidu/nettools/version"
 	"github.com/spf13/pflag"
 )
 
@@ -73,7 +74,12 @@ func main() {
 	pflag.StringVarP(&iface, "interface", "i", "", "Outgoing interface name (auto-detected if empty)")
 	pflag.BoolVarP(&verbose, "verbose", "v", false, "Print per-port loss details")
 
+	showVersion := pflag.BoolP("version", "V", false, "Print version and exit")
 	pflag.Parse()
+	if *showVersion {
+		fmt.Println(version.String())
+		return
+	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
 	// Load config file if specified.

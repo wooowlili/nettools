@@ -21,6 +21,7 @@ import (
 	"github.com/baidu/nettools/sonar/config"
 	"github.com/baidu/nettools/sonar/server"
 	"github.com/baidu/nettools/stat"
+	"github.com/baidu/nettools/version"
 	"go.uber.org/ratelimit"
 )
 
@@ -63,7 +64,12 @@ type baizeConfig struct {
 var configFile = flag.String("c", "baize.json", "path to config file")
 
 func main() {
+	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(version.String())
+		return
+	}
 
 	defer func() {
 		if err := recover(); err != nil {

@@ -12,6 +12,8 @@ builds:
       - arm64
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/baidu/nettools/version.Version={{.Version}} -X github.com/baidu/nettools/version.Commit={{.Commit}} -X github.com/baidu/nettools/version.Date={{.Date}}
 
   - id: bitflip6
     main: ./cmd/bitflip6
@@ -24,6 +26,8 @@ builds:
       - arm64
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/baidu/nettools/version.Version={{.Version}} -X github.com/baidu/nettools/version.Commit={{.Commit}} -X github.com/baidu/nettools/version.Date={{.Date}}
 
   - id: baize
     main: ./cmd/baize
@@ -36,6 +40,8 @@ builds:
       - arm64
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/baidu/nettools/version.Version={{.Version}} -X github.com/baidu/nettools/version.Commit={{.Commit}} -X github.com/baidu/nettools/version.Date={{.Date}}
 
   - id: lidar
     main: ./cmd/lidar
@@ -48,6 +54,8 @@ builds:
       - arm64
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/baidu/nettools/version.Version={{.Version}} -X github.com/baidu/nettools/version.Commit={{.Commit}} -X github.com/baidu/nettools/version.Date={{.Date}}
 
 archives:
   - id: default
