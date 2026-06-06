@@ -82,20 +82,25 @@ func (s *Scanner) serveRaw(fd int, stopped *int64, stopCh <-chan struct{}) {
 // Only matching packets are delivered to userspace. This avoids copying all
 // TCP traffic on high-throughput servers where most packets are unrelated.
 //
+// Key: BPF_IND uses the X register as index, NOT A. We transfer A→X (TAX)
+// before each BPF_IND load.
+//
 // BPF program layout (0-indexed):
 //
 //	 0  A = packet[0]               // IP version + IHL byte
 //	 1  A &= 0x0f                   // isolate IHL (low nibble)
 //	 2  A *= 4                      // IHL in bytes = TCP header offset
 //	 3  M[0] = A                    // save for reuse
-//	 4  A = packet[A+0..1]          // TCP srcPort (half-word, host order)
-//	 5  if A == serverPort: goto 6 else goto 10  (reject)
-//	 6  A = M[0]                    // restore TCP offset
-//	 7  A = packet[A+2..3]          // TCP dstPort
-//	 8  if A >= localPort: goto 9 else goto 10   (reject)
-//	 9  if A >= localPort+count: goto 10 else goto 11 (accept)
-//	10  return 0                    // reject
-//	11  return 0xffff               // accept (up to 64KB)
+//	 4  X = A                       // TAX — BPF_IND uses X!
+//	 5  A = packet[X+0..1]          // TCP srcPort (half-word, host order)
+//	 6  if A == serverPort: goto 7 else goto 12  (reject)
+//	 7  A = M[0]                    // restore TCP offset
+//	 8  X = A                       // TAX
+//	 9  A = packet[X+2..3]          // TCP dstPort
+//	10  if A >= localPort: goto 11 else goto 12  (reject)
+//	11  if A >= localPort+count: goto 12 else goto 13 (accept)
+//	12  return 0                    // reject
+//	13  return 0xffff               // accept (up to 64KB)
 func attachTCPFilter(fd int, serverPort int, srcPort uint16, portCount uint16) error {
 	sp := uint32(serverPort)
 	lp := uint32(srcPort)
@@ -106,18 +111,20 @@ func attachTCPFilter(fd int, serverPort int, srcPort uint16, portCount uint16) e
 		{Code: syscall.BPF_ALU | syscall.BPF_AND | syscall.BPF_K, K: 0x0f}, // 1: mask IHL
 		{Code: syscall.BPF_ALU | syscall.BPF_MUL | syscall.BPF_K, K: 4},   // 2: IHL * 4
 		{Code: syscall.BPF_ST, K: 0},                                        // 3: M[0] = TCP offset
+		{Code: syscall.BPF_MISC | syscall.BPF_TAX, K: 0},                   // 4: X = A (BPF_IND uses X!)
 
-		{Code: syscall.BPF_LD | syscall.BPF_H | syscall.BPF_IND, K: 0},    // 4: load TCP srcPort
-		{Code: syscall.BPF_JMP | syscall.BPF_JEQ | syscall.BPF_K, Jt: 0, Jf: 4, K: sp}, // 5: srcPort == serverPort?
+		{Code: syscall.BPF_LD | syscall.BPF_H | syscall.BPF_IND, K: 0},    // 5: A = packet[X+0..1] (srcPort)
+		{Code: syscall.BPF_JMP | syscall.BPF_JEQ | syscall.BPF_K, Jt: 0, Jf: 5, K: sp}, // 6
 
-		{Code: syscall.BPF_LD | syscall.BPF_MEM, K: 0},                     // 6: A = M[0]
-		{Code: syscall.BPF_LD | syscall.BPF_H | syscall.BPF_IND, K: 2},    // 7: load TCP dstPort
-		{Code: syscall.BPF_JMP | syscall.BPF_JGE | syscall.BPF_K, Jt: 0, Jf: 1, K: lp}, // 8: dstPort >= localPort?
+		{Code: syscall.BPF_LD | syscall.BPF_MEM, K: 0},                     // 7: A = M[0]
+		{Code: syscall.BPF_MISC | syscall.BPF_TAX, K: 0},                   // 8: X = A
+		{Code: syscall.BPF_LD | syscall.BPF_H | syscall.BPF_IND, K: 2},    // 9: A = packet[X+2..3] (dstPort)
+		{Code: syscall.BPF_JMP | syscall.BPF_JGE | syscall.BPF_K, Jt: 0, Jf: 1, K: lp}, // 10
 
-		{Code: syscall.BPF_JMP | syscall.BPF_JGE | syscall.BPF_K, Jt: 0, Jf: 1, K: hp}, // 9: dstPort < localPort+count?
+		{Code: syscall.BPF_JMP | syscall.BPF_JGE | syscall.BPF_K, Jt: 0, Jf: 1, K: hp}, // 11
 
-		{Code: syscall.BPF_RET | syscall.BPF_K, K: 0},                      // 10: reject
-		{Code: syscall.BPF_RET | syscall.BPF_K, K: 0x0000ffff},             // 11: accept
+		{Code: syscall.BPF_RET | syscall.BPF_K, K: 0},                      // 12: reject
+		{Code: syscall.BPF_RET | syscall.BPF_K, K: 0x0000ffff},             // 13: accept
 	}
 
 	prog := syscall.SockFprog{
