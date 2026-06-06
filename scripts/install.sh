@@ -48,7 +48,7 @@ get_latest_version() {
     fi
 
     version=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-        2>/dev/null | grep -oE '"tag_name":[[:space:]]*"[^"]+"' | head -1 | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+') \
+        2>/dev/null | grep -oE '"tag_name":[[:space:]]*"[^"]+"' | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') \
         || true
 
     if [ -z "$version" ]; then
