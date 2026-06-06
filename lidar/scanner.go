@@ -12,8 +12,8 @@ import (
 	"github.com/baidu/nettools/stat"
 	"golang.org/x/time/rate"
 
-	"github.com/smallnest/goscapy/pkg/layers"
 	"github.com/smallnest/goscapy/pkg/goscapy"
+	"github.com/smallnest/goscapy/pkg/layers"
 	"github.com/smallnest/goscapy/pkg/packet"
 	"github.com/smallnest/goscapy/pkg/sendrecv"
 )
@@ -169,7 +169,7 @@ func (s *Scanner) serveRecv(rx sendrecv.Receiver, stopped *int64, stopCh <-chan 
 		default:
 		}
 
-		pkt, err := rx.Recv(100 * time.Millisecond)
+		pkt, err := rx.Recv(time.Second)
 		if err != nil {
 			if errors.Is(err, sendrecv.ErrTimeout) {
 				if atomic.LoadInt64(stopped) > 0 {
@@ -274,28 +274,28 @@ func (s *Scanner) buildSYNPkt(dstIP string, srcPort, dstPort uint16, seq uint32)
 // goscapy captures at the link layer.
 func buildBPFProbeFilter(serverPort int, srcPort uint16, portCount uint16) []sendrecv.BPFInstruction {
 	const (
-		bpfLD    = 0x00 // BPF_LD
-		bpfLDX   = 0x01 // BPF_LDX
-		bpfSt    = 0x02 // BPF_ST
-		bpfAlu   = 0x04 // BPF_ALU
-		bpfJmp   = 0x05 // BPF_JMP
-		bpfRet   = 0x06 // BPF_RET
-		bpfMisc  = 0x07 // BPF_MISC
+		bpfLD   = 0x00 // BPF_LD
+		bpfLDX  = 0x01 // BPF_LDX
+		bpfSt   = 0x02 // BPF_ST
+		bpfAlu  = 0x04 // BPF_ALU
+		bpfJmp  = 0x05 // BPF_JMP
+		bpfRet  = 0x06 // BPF_RET
+		bpfMisc = 0x07 // BPF_MISC
 
-		bpfW     = 0x00
-		bpfH     = 0x08
-		bpfB     = 0x10
-		bpfAbs   = 0x20
-		bpfInd   = 0x40
-		bpfMem   = 0x60
+		bpfW   = 0x00
+		bpfH   = 0x08
+		bpfB   = 0x10
+		bpfAbs = 0x20
+		bpfInd = 0x40
+		bpfMem = 0x60
 
-		bpfK     = 0x00
-		bpfAdd   = 0x00
-		bpfMul   = 0x20
-		bpfAnd   = 0x50
-		bpfTax   = 0x00
-		bpfJeq   = 0x10
-		bpfJge   = 0x30
+		bpfK   = 0x00
+		bpfAdd = 0x00
+		bpfMul = 0x20
+		bpfAnd = 0x50
+		bpfTax = 0x00
+		bpfJeq = 0x10
+		bpfJge = 0x30
 
 		ethHdLen = 14
 	)
@@ -309,26 +309,26 @@ func buildBPFProbeFilter(serverPort int, srcPort uint16, portCount uint16) []sen
 	//   X = ethHdrLen + IHL*4  (TCP header offset from frame start)
 	// then load TCP fields at X+0 (srcPort) and X+2 (dstPort).
 	return []sendrecv.BPFInstruction{
-		{Code: bpfLD | bpfB | bpfAbs, K: off},          // 0: A = packet[14] (IP first byte)
-		{Code: bpfAlu | bpfAnd | bpfK, K: 0x0f},         // 1: A &= 0x0f (IHL)
-		{Code: bpfAlu | bpfMul | bpfK, K: 4},            // 2: A *= 4
-		{Code: bpfSt, K: 0},                               // 3: M[0] = A (save IHL*4)
-		{Code: bpfAlu | bpfAdd | bpfK, K: off},           // 4: A += 14 (add Ethernet header)
-		{Code: bpfMisc | bpfTax, K: 0},                   // 5: X = A (TCP offset from frame start)
+		{Code: bpfLD | bpfB | bpfAbs, K: off},   // 0: A = packet[14] (IP first byte)
+		{Code: bpfAlu | bpfAnd | bpfK, K: 0x0f}, // 1: A &= 0x0f (IHL)
+		{Code: bpfAlu | bpfMul | bpfK, K: 4},    // 2: A *= 4
+		{Code: bpfSt, K: 0},                     // 3: M[0] = A (save IHL*4)
+		{Code: bpfAlu | bpfAdd | bpfK, K: off},  // 4: A += 14 (add Ethernet header)
+		{Code: bpfMisc | bpfTax, K: 0},          // 5: X = A (TCP offset from frame start)
 
-		{Code: bpfLD | bpfH | bpfInd, K: 0},             // 6: A = packet[X+0..1] (srcPort)
+		{Code: bpfLD | bpfH | bpfInd, K: 0},                 // 6: A = packet[X+0..1] (srcPort)
 		{Code: bpfJmp | bpfJeq | bpfK, Jt: 0, Jf: 6, K: sp}, // 7: srcPort == serverPort?
 
-		{Code: bpfLD | bpfMem, K: 0},                     // 8: A = M[0] (IHL*4)
-		{Code: bpfAlu | bpfAdd | bpfK, K: off},           // 9: A += 14
-		{Code: bpfMisc | bpfTax, K: 0},                   // 10: X = A
-		{Code: bpfLD | bpfH | bpfInd, K: 2},             // 11: A = packet[X+2..3] (dstPort)
+		{Code: bpfLD | bpfMem, K: 0},                        // 8: A = M[0] (IHL*4)
+		{Code: bpfAlu | bpfAdd | bpfK, K: off},              // 9: A += 14
+		{Code: bpfMisc | bpfTax, K: 0},                      // 10: X = A
+		{Code: bpfLD | bpfH | bpfInd, K: 2},                 // 11: A = packet[X+2..3] (dstPort)
 		{Code: bpfJmp | bpfJge | bpfK, Jt: 0, Jf: 1, K: lp}, // 12: dstPort >= localPort?
 
 		{Code: bpfJmp | bpfJge | bpfK, Jt: 0, Jf: 1, K: hp}, // 13: dstPort < localPort+count?
 
-		{Code: bpfRet | bpfK, K: 0},                      // 14: reject
-		{Code: bpfRet | bpfK, K: 0x0000ffff},             // 15: accept
+		{Code: bpfRet | bpfK, K: 0},          // 14: reject
+		{Code: bpfRet | bpfK, K: 0x0000ffff}, // 15: accept
 	}
 }
 
