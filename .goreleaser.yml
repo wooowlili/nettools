@@ -1,0 +1,69 @@
+version: 2
+
+builds:
+  - id: bitflip
+    main: ./cmd/bitflip
+    binary: bitflip
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+  - id: bitflip6
+    main: ./cmd/bitflip6
+    binary: bitflip6
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+  - id: baize
+    main: ./cmd/baize
+    binary: baize
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+  - id: lidar
+    main: ./cmd/lidar
+    binary: lidar
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+archives:
+  - formats: ['tar.gz']
+    name_template: >-
+      {{ .Binary }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
