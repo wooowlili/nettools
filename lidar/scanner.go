@@ -1,29 +1,21 @@
-// Package lidar implements TCP SYN probing for network availability detection.
-//
-// On macOS, raw sockets (IPPROTO_TCP) cannot receive TCP responses because
-// the kernel TCP stack processes them first. This package uses BPF
-// (/dev/bpf*) devices for receiving on Darwin, following the same pattern
-// as goscapy's sendrecv package.
-//
-// On Linux, raw sockets (IPPROTO_TCP) can both send and receive TCP packets,
-// so a separate raw socket is used for receiving responses.
 package lidar
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"sync/atomic"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/baidu/nettools/stat"
 	"golang.org/x/time/rate"
 
-	"github.com/smallnest/goscapy/pkg/goscapy"
 	"github.com/smallnest/goscapy/pkg/layers"
+	"github.com/smallnest/goscapy/pkg/goscapy"
+	"github.com/smallnest/goscapy/pkg/packet"
+	"github.com/smallnest/goscapy/pkg/sendrecv"
 )
 
 // Scanner sends TCP SYN probes to a list of targets via raw sockets
@@ -35,15 +27,13 @@ type Scanner struct {
 
 	targets   []string
 	targetIPs []net.IP
-	localIP   net.IP
 
 	seq      uint64
 	seqStart uint64
 
-	srcPort      uint16
-	portCount    uint16
-	currentPort  uint16
-	littleEndian bool
+	srcPort     uint16
+	portCount   uint16
+	currentPort uint16
 
 	stats map[string]stat.Stat
 	proc  *stat.Processor
@@ -56,9 +46,6 @@ func NewScanner(conf *Config, limiter *rate.Limiter, logger *log.Logger) *Scanne
 	for i, addr := range conf.TargetAddrs {
 		targetIPs[i] = net.ParseIP(addr).To4()
 	}
-
-	var i int16 = 1
-	isLE := *(*byte)(unsafe.Pointer(&i)) == 1
 
 	sender := NewLidarSender(logger, conf.Verbose)
 	proc := stat.NewProcessor(conf.Span, conf.Delay)
@@ -73,35 +60,27 @@ func NewScanner(conf *Config, limiter *rate.Limiter, logger *log.Logger) *Scanne
 	}
 
 	return &Scanner{
-		conf:         conf,
-		limiter:      limiter,
-		logger:       logger,
-		targets:      conf.TargetAddrs,
-		targetIPs:    targetIPs,
-		localIP:      net.ParseIP(conf.LocalAddr).To4(),
-		stats:        stats,
-		proc:         proc,
-		srcPort:      uint16(conf.LocalPort),
-		portCount:    uint16(conf.LocalPortCount),
-		currentPort:  uint16(conf.LocalPort),
-		littleEndian: isLE,
+		conf:        conf,
+		limiter:     limiter,
+		logger:      logger,
+		targets:     conf.TargetAddrs,
+		targetIPs:   targetIPs,
+		stats:       stats,
+		proc:        proc,
+		srcPort:     uint16(conf.LocalPort),
+		portCount:   uint16(conf.LocalPortCount),
+		currentPort: uint16(conf.LocalPort),
 	}
 }
 
 // Run starts the TCP SYN probing loop.
 func (s *Scanner) Run(ctx context.Context) error {
-	// Open send socket: AF_INET, SOCK_RAW, IPPROTO_RAW + IP_HDRINCL.
-	sendFD, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_RAW)
+	sender, err := sendrecv.NewSender()
 	if err != nil {
-		return fmt.Errorf("failed to open send socket: %w", err)
+		return fmt.Errorf("failed to open sender: %w", err)
 	}
-	defer func() { _ = syscall.Close(sendFD) }()
+	defer func() { _ = sender.Close() }()
 
-	if err := syscall.SetsockoptInt(sendFD, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1); err != nil {
-		return fmt.Errorf("failed to set IP_HDRINCL: %w", err)
-	}
-
-	// Resolve outgoing interface.
 	iface := s.conf.Interface
 	if iface == "" {
 		iface = findInterfaceByIP(s.conf.LocalAddr)
@@ -113,14 +92,17 @@ func (s *Scanner) Run(ctx context.Context) error {
 	var stopped int64
 	stopCh := make(chan struct{})
 
-	// Start platform-specific receiver.
-	cleanup, err := s.startReceiver(iface, s.logger, &stopped, stopCh)
+	filter := buildBPFProbeFilter(s.conf.ServerPort, s.srcPort, s.portCount)
+	rx, err := sendrecv.OpenFilteredReceiver(iface, filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open receiver: %w", err)
 	}
-	defer cleanup()
+	defer func() { _ = rx.Close() }()
 
-	// Start the stat processor.
+	s.logger.Printf("[INFO] probing on %s (rate: %d pps)", iface, s.conf.Rate)
+
+	go s.serveRecv(rx, &stopped, stopCh)
+
 	go s.proc.Run(ctx)
 
 	s.seqStart = atomic.LoadUint64(&s.seq)
@@ -132,7 +114,6 @@ func (s *Scanner) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			close(stopCh)
-			// Wait for in-flight responses.
 			time.Sleep(s.conf.Delay)
 			return nil
 		default:
@@ -155,31 +136,23 @@ func (s *Scanner) Run(ctx context.Context) error {
 
 		port := s.currentPort
 		now := time.Now().UnixNano()
-		for i, dstIP := range s.targetIPs {
+		for i := range s.targetIPs {
 			seq := atomic.AddUint64(&s.seq, 1)
-			data, err := s.buildSYN(s.targets[i], port, uint16(s.conf.ServerPort), uint32(seq))
+			pkt, err := s.buildSYNPkt(s.targets[i], port, uint16(s.conf.ServerPort), uint32(seq))
 			if err != nil {
 				s.logger.Printf("[ERRO] build SYN: %v", err)
 				continue
 			}
 
-			s.fixByteOrder(data)
-
-			var addr [4]byte
-			copy(addr[:], dstIP)
-			sa := syscall.SockaddrInet4{Addr: addr}
-
-			if err := syscall.Sendto(sendFD, data, 0, &sa); err != nil {
+			if err := sender.Send(pkt); err != nil {
 				s.logger.Printf("[ERRO] send %s:%d: %v", s.targets[i], s.conf.ServerPort, err)
 				continue
 			}
 
 			s.stats[s.targets[i]].Put(port, uint16(s.conf.ServerPort), seq, now)
-
 			count++
 		}
 
-		// Advance to next source port, wrapping around.
 		s.currentPort++
 		if s.currentPort >= s.srcPort+s.portCount {
 			s.currentPort = s.srcPort
@@ -187,33 +160,59 @@ func (s *Scanner) Run(ctx context.Context) error {
 	}
 }
 
-// processIPPacket parses an IP packet and classifies the TCP response.
-// ipData must start at the IP header (link-layer header already stripped).
-func (s *Scanner) processIPPacket(ipData []byte) {
-	if len(ipData) < 40 {
+// serveRecv reads parsed packets from the goscapy Receiver and classifies them.
+func (s *Scanner) serveRecv(rx sendrecv.Receiver, stopped *int64, stopCh <-chan struct{}) {
+	for {
+		select {
+		case <-stopCh:
+			return
+		default:
+		}
+
+		pkt, err := rx.Recv(100 * time.Millisecond)
+		if err != nil {
+			if errors.Is(err, sendrecv.ErrTimeout) {
+				if atomic.LoadInt64(stopped) > 0 {
+					return
+				}
+				continue
+			}
+			continue
+		}
+
+		s.processParsedPacket(pkt)
+	}
+}
+
+// processParsedPacket extracts TCP fields from a dissected packet and
+// classifies the response as SYN-ACK or RST.
+func (s *Scanner) processParsedPacket(pkt *packet.Packet) {
+	tcpLayer := pkt.GetLayer("TCP")
+	if tcpLayer == nil {
 		return
 	}
 
-	// Verify IP version and header length.
-	version := ipData[0] >> 4
-	if version != 4 {
+	srcPortVal, err := tcpLayer.Get("sport")
+	if err != nil {
 		return
 	}
-	ihl := int(ipData[0]&0x0f) * 4
-	if ihl < 20 || ihl > len(ipData) {
+	dstPortVal, err := tcpLayer.Get("dport")
+	if err != nil {
+		return
+	}
+	flagsVal, err := tcpLayer.Get("flags")
+	if err != nil {
+		return
+	}
+	ackVal, err := tcpLayer.Get("ack")
+	if err != nil {
 		return
 	}
 
-	tcpStart := ihl
-	if len(ipData)-tcpStart < 20 {
-		return
-	}
-
-	srcPort := uint16(ipData[tcpStart])<<8 | uint16(ipData[tcpStart+1])
-	dstPort := uint16(ipData[tcpStart+2])<<8 | uint16(ipData[tcpStart+3])
-	flags := ipData[tcpStart+13]
-	ackNum := uint32(ipData[tcpStart+8])<<24 | uint32(ipData[tcpStart+9])<<16 |
-		uint32(ipData[tcpStart+10])<<8 | uint32(ipData[tcpStart+11])
+	srcPort := srcPortVal.(uint16)
+	dstPort := dstPortVal.(uint16)
+	flags := flagsVal.(uint8)
+	ackNum := ackVal.(uint32)
 
 	if int(srcPort) != s.conf.ServerPort {
 		return
@@ -225,15 +224,11 @@ func (s *Scanner) processIPPacket(ipData []byte) {
 	seq := uint64(ackNum - 1)
 	now := time.Now().UnixNano()
 
-	// Determine target index from seq: each round sends one packet per target.
-	// packet 0 → target 0, packet 1 → target 1, ..., packet N-1 → target N-1,
-	// packet N → target 0, ...
 	targetIdx := int((seq - s.seqStart - 1) % uint64(len(s.targets)))
-	target := s.targets[targetIdx]
-
 	if targetIdx < 0 || targetIdx >= len(s.targets) {
 		return
 	}
+	target := s.targets[targetIdx]
 
 	st := s.stats[target]
 	if st == nil {
@@ -252,7 +247,7 @@ func (s *Scanner) processIPPacket(ipData []byte) {
 // Packet construction
 // ---------------------------------------------------------------------------
 
-func (s *Scanner) buildSYN(dstIP string, srcPort, dstPort uint16, seq uint32) ([]byte, error) {
+func (s *Scanner) buildSYNPkt(dstIP string, srcPort, dstPort uint16, seq uint32) (*packet.Packet, error) {
 	pb := goscapy.NewIP().
 		SrcIP(s.conf.LocalAddr).
 		DstIP(dstIP).
@@ -266,7 +261,75 @@ func (s *Scanner) buildSYN(dstIP string, srcPort, dstPort uint16, seq uint32) ([
 				Window(14600),
 		)
 
-	return pb.Packet().Build()
+	return pb.Packet(), nil
+}
+
+// ---------------------------------------------------------------------------
+// BPF filter
+// ---------------------------------------------------------------------------
+
+// buildBPFProbeFilter builds a classic BPF filter that only passes TCP packets
+// where srcPort == serverPort and localPort <= dstPort < localPort + portCount.
+// The filter operates on L2 frames (14-byte Ethernet header present) since
+// goscapy captures at the link layer.
+func buildBPFProbeFilter(serverPort int, srcPort uint16, portCount uint16) []sendrecv.BPFInstruction {
+	const (
+		bpfLD    = 0x00 // BPF_LD
+		bpfLDX   = 0x01 // BPF_LDX
+		bpfSt    = 0x02 // BPF_ST
+		bpfAlu   = 0x04 // BPF_ALU
+		bpfJmp   = 0x05 // BPF_JMP
+		bpfRet   = 0x06 // BPF_RET
+		bpfMisc  = 0x07 // BPF_MISC
+
+		bpfW     = 0x00
+		bpfH     = 0x08
+		bpfB     = 0x10
+		bpfAbs   = 0x20
+		bpfInd   = 0x40
+		bpfMem   = 0x60
+
+		bpfK     = 0x00
+		bpfAdd   = 0x00
+		bpfMul   = 0x20
+		bpfAnd   = 0x50
+		bpfTax   = 0x00
+		bpfJeq   = 0x10
+		bpfJge   = 0x30
+
+		ethHdLen = 14
+	)
+
+	sp := uint32(serverPort)
+	lp := uint32(srcPort)
+	hp := uint32(srcPort + portCount)
+	off := uint32(ethHdLen)
+
+	// BPF_IND uses X register as index. We compute:
+	//   X = ethHdrLen + IHL*4  (TCP header offset from frame start)
+	// then load TCP fields at X+0 (srcPort) and X+2 (dstPort).
+	return []sendrecv.BPFInstruction{
+		{Code: bpfLD | bpfB | bpfAbs, K: off},          // 0: A = packet[14] (IP first byte)
+		{Code: bpfAlu | bpfAnd | bpfK, K: 0x0f},         // 1: A &= 0x0f (IHL)
+		{Code: bpfAlu | bpfMul | bpfK, K: 4},            // 2: A *= 4
+		{Code: bpfSt, K: 0},                               // 3: M[0] = A (save IHL*4)
+		{Code: bpfAlu | bpfAdd | bpfK, K: off},           // 4: A += 14 (add Ethernet header)
+		{Code: bpfMisc | bpfTax, K: 0},                   // 5: X = A (TCP offset from frame start)
+
+		{Code: bpfLD | bpfH | bpfInd, K: 0},             // 6: A = packet[X+0..1] (srcPort)
+		{Code: bpfJmp | bpfJeq | bpfK, Jt: 0, Jf: 6, K: sp}, // 7: srcPort == serverPort?
+
+		{Code: bpfLD | bpfMem, K: 0},                     // 8: A = M[0] (IHL*4)
+		{Code: bpfAlu | bpfAdd | bpfK, K: off},           // 9: A += 14
+		{Code: bpfMisc | bpfTax, K: 0},                   // 10: X = A
+		{Code: bpfLD | bpfH | bpfInd, K: 2},             // 11: A = packet[X+2..3] (dstPort)
+		{Code: bpfJmp | bpfJge | bpfK, Jt: 0, Jf: 1, K: lp}, // 12: dstPort >= localPort?
+
+		{Code: bpfJmp | bpfJge | bpfK, Jt: 0, Jf: 1, K: hp}, // 13: dstPort < localPort+count?
+
+		{Code: bpfRet | bpfK, K: 0},                      // 14: reject
+		{Code: bpfRet | bpfK, K: 0x0000ffff},             // 15: accept
+	}
 }
 
 // findInterfaceByIP returns the interface name that has the given IP address.
