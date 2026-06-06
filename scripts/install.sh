@@ -121,10 +121,9 @@ install() {
     trap 'rm -rf "$tmpdir"' EXIT
 
     info "Downloading nettools v${version} for ${platform}..."
-    http_code=$(curl -fsSL -w "%{http_code}" -o "${tmpdir}/${archive}" "$url" 2>/dev/null) || true
 
-    if [ "$http_code" != "200" ]; then
-        error "Download failed (HTTP ${http_code})."
+    if ! curl -fSL -o "${tmpdir}/${archive}" "$url"; then
+        error "Download failed."
         error "URL: ${url}"
         error "The release for your platform may not exist yet."
         exit 1
