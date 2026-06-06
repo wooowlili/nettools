@@ -300,7 +300,7 @@ func TestServeRecvStopsOnChannel(t *testing.T) {
 
 func makeTCPPacket(srcPort, dstPort uint16, flags uint8, ack uint32) *packet.Packet {
 	tcpLayer := layers.NewTCPWith(srcPort, dstPort, flags)
-	tcpLayer.Set("ack", ack)
+	_ = tcpLayer.Set("ack", ack)
 	return packet.NewFrom(tcpLayer)
 }
 
