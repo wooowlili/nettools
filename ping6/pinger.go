@@ -293,22 +293,28 @@ func (p *Pinger) serveRecv(stopCh <-chan struct{}) error {
 func (p *Pinger) processPacket(raw []byte, from syscall.Sockaddr, rxts int64) {
 	pkt, err := packet.DissectByProto(raw, "ICMPv6")
 	if err != nil {
+		p.logger.Printf("[DEBUG] dissect failed (%d bytes): %v", len(raw), err)
 		return
 	}
 
 	icmpLayer := pkt.GetLayer("ICMPv6")
 	if icmpLayer == nil {
+		p.logger.Printf("[DEBUG] no ICMPv6 layer")
 		return
 	}
 
 	icmpTypeVal, err := icmpLayer.Get("type")
 	if err != nil {
+		p.logger.Printf("[DEBUG] no icmp type: %v", err)
 		return
 	}
 	icmpType, ok := icmpTypeVal.(uint8)
 	if !ok {
+		p.logger.Printf("[DEBUG] icmp type is %T not uint8", icmpTypeVal)
 		return
 	}
+
+	p.logger.Printf("[DEBUG] recv ICMPv6 type=%d from %s", icmpType, sockaddrToString(from))
 
 	switch icmpType {
 	case icmpv6EchoReply:
@@ -316,6 +322,8 @@ func (p *Pinger) processPacket(raw []byte, from syscall.Sockaddr, rxts int64) {
 	case icmpv6DestUnreach, icmpv6TimeExceed:
 		srcStr := sockaddrToString(from)
 		p.handleICMPv6Error(srcStr, icmpType)
+	default:
+		p.logger.Printf("[DEBUG] unhandled ICMPv6 type=%d", icmpType)
 	}
 }
 
