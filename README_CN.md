@@ -12,6 +12,8 @@
 - **bitflip6**: bitflip 的 IPv6 版本，用于 IPv6 网络诊断。
 - **baize**: 配置驱动的网络质量持续监控工具，适合长期部署场景。
 - **lidar**: TCP SYN 网络可达性探测工具，无需在远端部署任何软件。
+- **mping**: 多目标 ICMP Echo 批量 ping 工具，支持 CIDR 展开、DNS 解析和硬件时间戳。
+- **mping6**: mping 的 IPv6 版本，用于 ICMPv6 Echo 探测。
 
 > 百度系统部出品
 
@@ -145,6 +147,69 @@ bitflip 的 IPv6 版本。用法与 bitflip 一致，使用 IPv6 地址：
 # 客户端
 sudo ./bitflip6 -r client -s fd00::2
 ```
+
+## mping
+
+多目标 ICMP Echo 批量 ping 工具，支持 CIDR 网段展开、DNS 主机名解析、硬件时间戳（Linux）和高速率探测。mping6 是 IPv6 版本。
+
+**核心特性：**
+- **CIDR 展开：** 传入网段（如 `10.0.1.0/24`）自动展开所有主机地址。IPv6 支持 `/112`–`/128` 前缀，`--max-targets` 防止意外展开过大网段。
+- **DNS 解析：** 传入主机名自动解析（mping 取 A 记录，mping6 取 AAAA 记录）。
+- **硬件时间戳：** Linux 默认启用 `SO_TIMESTAMPING`，纳秒级延迟精度。macOS 自动回退到软件时间戳。
+- **速率控制：** 内置令牌桶限速，精确控制每目标每秒发包数。
+- **多目标混合：** 逗号分隔 IP、CIDR 网段、DNS 主机名可混合使用。
+
+### 快速开始
+
+**编译：**
+```bash
+make compile
+```
+
+**运行：**
+```bash
+# 单目标（默认 100 pps）
+sudo ./mping -T 10.0.0.2
+
+# 多目标
+sudo ./mping -T 10.0.0.2,10.0.0.3,10.0.0.4
+
+# CIDR 网段——探测整个 /24
+sudo ./mping -T 10.0.1.0/24
+
+# DNS 主机名
+sudo ./mping -T www.example.com
+
+# 高速率探测 30 秒
+sudo ./mping -T 10.0.0.2 -r 1000 -d 30s
+
+# IPv6
+sudo ./mping6 -T fd00::2
+```
+
+### 命令行参数（mping）
+
+| 短参数 | 长参数 | 默认值 | 说明 |
+|--------|--------|--------|------|
+| `-T` | `--targets` | — | 目标 IPv4 地址/CIDR/主机名，逗号分隔（必填） |
+| `-l` | `--local-addr` | 自动检测 | 本机 IP 地址 |
+| `-I` | `--interface` | 自动检测 | 出接口名称 |
+| `-z` | `--tos` | 0 | IP TOS/DSCP 值 |
+| | `--ttl` | 64 | IP TTL |
+| `-c` | `--count` | 0 | 每个目标最大发包数（0 = 无限制） |
+| `-d` | `--duration` | 0 | 最大发送时长（0 = 无限制） |
+| | `--delay` | 3s | 统计处理延迟（等待在途报文） |
+| `-t` | `--timeout` | 1s | Socket 读超时 |
+| `-r` | `--rate` | 100 | 每秒每目标发包数（pps） |
+| `-s` | `--size` | 64 | ICMP 载荷大小（字节，最小 8） |
+| | `--verbose` | false | 打印逐包 ICMP 回复详情 |
+| | `--hwts` | true | 启用硬件时间戳（默认开启） |
+| | `--max-targets` | 65536 | CIDR/DNS 展开后最大目标数 |
+| `-V` | `--version` | false | 打印版本信息 |
+
+mping6 参数相同，仅用 IPv6 对应项替换（如 `--tc` 替代 `--tos`，`--hlim` 替代 `--ttl`）。
+
+详见 [mping 使用指南](docs/mping.html)。
 
 ## baize
 

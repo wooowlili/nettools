@@ -12,6 +12,8 @@ A suite of network diagnostic tools developed by Baidu's physical network black-
 - **bitflip6**: IPv6 variant of bitflip for IPv6 network diagnostics.
 - **baize**: Configuration-driven continuous network quality monitoring tool for long-term deployment.
 - **lidar**: TCP SYN probing tool for network reachability detection — no server-side deployment required.
+- **mping**: Multi-target ICMP Echo ping tool with CIDR expansion, DNS resolution, and hardware timestamping.
+- **mping6**: IPv6 variant of mping for ICMPv6 Echo probing.
 
 > Produced by Baidu System Department
 
@@ -152,6 +154,69 @@ IPv6 variant of bitflip. Usage is identical to bitflip, with IPv6 addresses:
 # Client side
 sudo ./bitflip6 -r client -s fd00::2
 ```
+
+## mping
+
+A multi-target ICMP Echo ping tool for batch network quality inspection. Supports CIDR range expansion, DNS hostname resolution, hardware timestamping (Linux), and high-rate probing. mping6 is the IPv6 variant.
+
+**Key features:**
+- **CIDR expansion:** Pass a network prefix (e.g. `10.0.1.0/24`) and mping automatically expands to all host addresses. IPv6 supports `/112`–`/128` prefixes with a `--max-targets` safety cap.
+- **DNS resolution:** Pass hostnames and mping resolves them automatically (A records for mping, AAAA for mping6).
+- **Hardware timestamps:** Enabled by default on Linux via `SO_TIMESTAMPING` for nanosecond latency accuracy. Falls back to software timestamps on macOS.
+- **Rate control:** Built-in token bucket rate limiter for precise per-target pps control.
+- **Multi-target:** Comma-separated IPs, CIDR ranges, and DNS hostnames can be mixed freely.
+
+### Quick Start
+
+**Build:**
+```bash
+make compile
+```
+
+**Run:**
+```bash
+# Single target (default 100 pps)
+sudo ./mping -T 10.0.0.2
+
+# Multiple targets
+sudo ./mping -T 10.0.0.2,10.0.0.3,10.0.0.4
+
+# CIDR range — probe entire /24
+sudo ./mping -T 10.0.1.0/24
+
+# DNS hostname
+sudo ./mping -T www.example.com
+
+# High rate for 30 seconds
+sudo ./mping -T 10.0.0.2 -r 1000 -d 30s
+
+# IPv6
+sudo ./mping6 -T fd00::2
+```
+
+### Command-line Flags (mping)
+
+| Short | Long | Default | Description |
+|-------|------|---------|-------------|
+| `-T` | `--targets` | — | Target IPv4 addresses/CIDR/hostnames, comma-separated (required) |
+| `-l` | `--local-addr` | auto | Local IP address |
+| `-I` | `--interface` | auto | Outgoing interface name |
+| `-z` | `--tos` | 0 | IP TOS/DSCP value |
+| | `--ttl` | 64 | IP TTL |
+| `-c` | `--count` | 0 | Max packets per target (0 = unlimited) |
+| `-d` | `--duration` | 0 | Max send duration (0 = unlimited) |
+| | `--delay` | 3s | Delay before processing stats |
+| `-t` | `--timeout` | 1s | Socket read timeout |
+| `-r` | `--rate` | 100 | Packets per second per target |
+| `-s` | `--size` | 64 | ICMP payload size in bytes (min: 8) |
+| | `--verbose` | false | Print per-reply ICMP details |
+| | `--hwts` | true | Enable hardware timestamping |
+| | `--max-targets` | 65536 | Max targets after CIDR/DNS expansion |
+| `-V` | `--version` | false | Print version and exit |
+
+mping6 has the same flags with IPv6 equivalents (e.g. `--tc` instead of `--tos`, `--hlim` instead of `--ttl`).
+
+See [mping usage guide](docs/mping.html) for more details.
 
 ## baize
 

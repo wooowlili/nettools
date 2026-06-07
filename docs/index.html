@@ -1813,7 +1813,7 @@
                     <div class="stat-label">内部部署节点</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">3</div>
+                    <div class="stat-value">5</div>
                     <div class="stat-label">已开源工具</div>
                 </div>
                 <div class="stat-item">
@@ -1846,6 +1846,7 @@
                 <a href="baize.html">baize（白泽）</a>
                 <a href="bitflip.html">bitflip / bitflip6</a>
                 <a href="lidar.html">lidar（激光雷达）</a>
+                <a href="mping.html">mping / mping6</a>
             </div>
 
             <!-- lidar -->
@@ -2074,6 +2075,66 @@ cd nettools && make build</span>
                 </div>
             </div>
 
+            <!-- mping / mping6 -->
+            <div class="section" id="mping">
+                <div class="section-header">
+                    <div class="section-dot" style="background: #5B8A72;"></div>
+                    <h2>mping / mping6 — 多目标 ICMP 批量探测</h2>
+                    <span class="badge badge-new">最新发布</span>
+                    <a href="mping.html" class="guide-link">使用指南 &rarr;</a>
+                </div>
+
+                <p>
+                    mping
+                    是多目标 ICMP Echo 探测工具，支持 CIDR
+                    网段展开、DNS 解析、硬件时间戳，一次命令探测成百上千个目标。mping6
+                    是其 IPv6 版本。
+                </p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🌐</div>
+                        <h4>CIDR 批量展开</h4>
+                        <p>
+                            传入网段自动展开所有 IP，支持 IPv4 和 IPv6。--max-targets
+                            防止意外展开过大网段。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⏱️</div>
+                        <h4>硬件时间戳</h4>
+                        <p>
+                            默认启用 SO_TIMESTAMPING，纳秒级延迟精度。macOS
+                            自动回退到软件时间戳。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔍</div>
+                        <h4>DNS + 多 IP</h4>
+                        <p>
+                            自动解析主机名（A/AAAA 记录），逗号分隔多 IP，混合使用 CIDR + DNS + 单 IP。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>高速率 + 实时统计</h4>
+                        <p>
+                            令牌桶限速精确控制 pps，按秒报告延迟、丢包率。支持 Verbose 逐包详情。
+                        </p>
+                    </div>
+                </div>
+
+                <h3>典型场景</h3>
+                <div class="scenario-tags">
+                    <span class="scenario-tag">机房批量连通性巡检</span>
+                    <span class="scenario-tag">CIDR 网段扫描</span>
+                    <span class="scenario-tag">网络质量基线采集</span>
+                    <span class="scenario-tag">割接前后对比</span>
+                    <span class="scenario-tag">IPv6 网络验证</span>
+                    <span class="scenario-tag">DNS 域名可达性</span>
+                </div>
+            </div>
+
             <!-- Comparison -->
             <div class="section" id="compare">
                 <div class="section-header">
@@ -2087,17 +2148,20 @@ cd nettools && make build</span>
                         <th>bitflip / bitflip6</th>
                         <th>baize</th>
                         <th>lidar</th>
+                        <th>mping / mping6</th>
                     </tr>
                     <tr>
                         <td>探测协议</td>
                         <td>UDP</td>
                         <td>UDP</td>
                         <td>TCP SYN</td>
+                        <td>ICMP Echo</td>
                     </tr>
                     <tr>
                         <td>需要服务端</td>
                         <td>需要</td>
                         <td>需要</td>
+                        <td>不需要</td>
                         <td>不需要</td>
                     </tr>
                     <tr>
@@ -2105,23 +2169,33 @@ cd nettools && make build</span>
                         <td>丢包 + bitflip</td>
                         <td>丢包 + bitflip</td>
                         <td>可达性（SYN-ACK/RST/Timeout）</td>
+                        <td>延迟 + 丢包</td>
                     </tr>
                     <tr>
                         <td>配置方式</td>
                         <td>命令行参数</td>
                         <td>JSON 配置文件</td>
                         <td>命令行参数</td>
+                        <td>命令行参数</td>
+                    </tr>
+                    <tr>
+                        <td>多目标</td>
+                        <td>多 IP</td>
+                        <td>多 IP</td>
+                        <td>多 IP</td>
+                        <td>CIDR + DNS + 多 IP</td>
                     </tr>
                     <tr>
                         <td>适用场景</td>
                         <td>临时排查、快速诊断</td>
                         <td>长期部署、持续监控</td>
                         <td>快速可达性探测</td>
+                        <td>批量 ICMP 巡检</td>
                     </tr>
                 </table>
 
                 <div class="tip">
-                    <strong>简单来说：</strong>UDP 质量监控用 bitflip/baize，快速可达性探测用 lidar。bitflip 适合临时排查，baize 适合长期部署，lidar 适合无需服务端的场景。
+                    <strong>简单来说：</strong>UDP 质量监控用 bitflip/baize，TCP 可达性探测用 lidar，ICMP 批量巡检用 mping。bitflip 适合临时排查，baize 适合长期部署，lidar 适合无需服务端的 TCP 探测，mping 适合批量 ICMP 延迟和丢包检测。
                 </div>
             </div>
 

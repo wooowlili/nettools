@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mping / mping6 使用指南</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #FAF9F6;
+      min-height: 100vh;
+      padding: 2.5rem 2rem;
+      color: #1a1a1a;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 2.5rem;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.375rem;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      background: #5B8A72;
+      border-radius: 50%;
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    h1 {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #1a1a1a;
+    }
+
+    .subtitle {
+      color: #8B8680;
+      font-size: 0.8125rem;
+      margin-left: 1.625rem;
+      letter-spacing: 0.01em;
+    }
+
+    .diagram-desc {
+      color: #B0AAA4;
+      font-size: 0.6875rem;
+      margin-top: 0.5rem;
+      margin-left: 1.625rem;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 0.75rem;
+      margin-left: 1.625rem;
+      font-size: 0.75rem;
+      color: #5B8A72;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover {
+      color: #D97757;
+    }
+
+    h2 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #E8E4DE;
+    }
+
+    h3 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    p {
+      color: #4A4540;
+      font-size: 0.8125rem;
+      line-height: 1.7;
+      margin-bottom: 0.75rem;
+    }
+
+    .section {
+      background: #FFFFFF;
+      border-radius: 12px;
+      border: 1px solid #E8E4DE;
+      padding: 1.5rem 1.75rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .section-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .section-dot.terracotta { background: #D97757; }
+    .section-dot.sage { background: #5B8A72; }
+    .section-dot.slate { background: #6B7280; }
+    .section-dot.plum { background: #8B6F8A; }
+    .section-dot.rose { background: #C96464; }
+    .section-dot.teal { background: #2D8E9E; }
+
+    .section-title h3 {
+      margin: 0;
+      font-size: 0.875rem;
+    }
+
+    pre {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+      font-size: 0.75rem;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      color: #E8E4DE;
+    }
+
+    .inline-code {
+      background: #F5F3F0;
+      border: 1px solid #E8E4DE;
+      border-radius: 4px;
+      padding: 0.125rem 0.375rem;
+      font-size: 0.75rem;
+      color: #5B8A72;
+    }
+
+    .comment { color: #6B7280; }
+    .flag { color: #D97757; }
+    .value { color: #2D8E9E; }
+    .key { color: #8B6F8A; }
+    .cmd { color: #E8E4DE; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+      margin: 0.75rem 0;
+    }
+
+    th {
+      background: #F7F6F4;
+      font-weight: 600;
+      text-align: left;
+      padding: 0.625rem 0.75rem;
+      color: #4A4540;
+      border-bottom: 1px solid #E8E4DE;
+    }
+
+    td {
+      padding: 0.5rem 0.75rem;
+      color: #4A4540;
+      border-bottom: 1px solid #F0EDE8;
+    }
+
+    tr:hover td {
+      background: #FDFCFB;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      font-weight: 500;
+    }
+
+    .badge-new {
+      background: #F0F8FA;
+      color: #5B8A72;
+      border: 1px solid #5B8A72;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border-radius: 10px;
+      border: 1px solid #E8E4DE;
+      padding: 1.125rem 1.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.625rem;
+    }
+
+    .card-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .card-dot.terracotta { background: #D97757; }
+    .card-dot.sage { background: #5B8A72; }
+    .card-dot.slate { background: #6B7280; }
+    .card-dot.plum { background: #8B6F8A; }
+    .card-dot.rose { background: #C96464; }
+    .card-dot.teal { background: #2D8E9E; }
+
+    .card h4 {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .card ul {
+      list-style: none;
+      color: #6B6560;
+      font-size: 0.75rem;
+      line-height: 1.7;
+    }
+
+    .card li {
+      margin-bottom: 0.25rem;
+    }
+
+    .note {
+      background: #FFF5F0;
+      border-left: 3px solid #D97757;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: #6B6560;
+      margin: 0.75rem 0;
+    }
+
+    .note strong {
+      color: #D97757;
+    }
+
+    .tip {
+      background: #F0F8FA;
+      border-left: 3px solid #5B8A72;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: #6B6560;
+      margin: 0.75rem 0;
+    }
+
+    .tip strong {
+      color: #5B8A72;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 2rem;
+      color: #B0AAA4;
+      font-size: 0.6875rem;
+      letter-spacing: 0.02em;
+    }
+
+    .toc {
+      background: #FDFCFB;
+      border: 1px solid #E8E4DE;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .toc h3 {
+      font-size: 0.8125rem;
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      color: #8B8680;
+    }
+
+    .toc ul {
+      list-style: none;
+      font-size: 0.75rem;
+    }
+
+    .toc li {
+      margin-bottom: 0.375rem;
+    }
+
+    .toc a {
+      color: #5B8A72;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .toc a:hover {
+      color: #D97757;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>mping / mping6 使用指南</h1>
+      </div>
+      <p class="subtitle">nettools · 多目标 ICMP Ping 工具（IPv4 / IPv6）</p>
+      <p class="diagram-desc"><b>Usage Guide</b> — 涵盖原理、安装、命令行参数、CIDR 批量探测及典型使用场景。</p>
+      <a class="back-link" href="index.html">&larr; 返回首页</a>
+    </div>
+
+    <!-- TOC -->
+    <div class="toc">
+      <h3>目录</h3>
+      <ul>
+        <li><a href="#overview">1. 概述</a></li>
+        <li><a href="#principle">2. 工作原理</a></li>
+        <li><a href="#scenarios">3. 使用场景</a></li>
+        <li><a href="#comparison">4. 与 bitflip / lidar 的区别</a></li>
+        <li><a href="#install">5. 安装</a></li>
+        <li><a href="#quickstart">6. 快速开始</a></li>
+        <li><a href="#params">7. 命令行参数详解</a></li>
+        <li><a href="#output">8. 输出解读</a></li>
+        <li><a href="#examples">9. 使用示例</a></li>
+        <li><a href="#faq">10. FAQ</a></li>
+      </ul>
+    </div>
+
+    <!-- Section 1: Overview -->
+    <div class="section" id="overview">
+      <div class="section-title">
+        <div class="section-dot sage"></div>
+        <h3>1. 概述</h3>
+      </div>
+      <p>
+        <span class="badge badge-new">最新发布</span>
+        mping / mping6 是百度系统部物理网络黑盒监控团队开发的<strong>多目标 ICMP Ping 工具</strong>。支持 CIDR 展开批量探测、DNS 解析、高速率发送、硬件时间戳，适合大规模网络质量巡检和故障排查。mping 用于 IPv4，mping6 用于 IPv6。
+      </p>
+      <p>
+        <strong>核心特性：</strong>
+      </p>
+      <ul style="color: #4A4540; font-size: 0.8125rem; line-height: 1.7; margin-bottom: 0.75rem; padding-left: 1.5rem;">
+        <li><strong>多目标并行：</strong>支持逗号分隔 IP、CIDR 网段自动展开、DNS 主机名解析，一次命令探测成百上千个目标。</li>
+        <li><strong>CIDR 展开与限制：</strong>IPv4 自动排除网络地址和广播地址，IPv6 限制 /112–/128 前缀以防止过度展开，<code class="inline-code">--max-targets</code> 控制上限。</li>
+        <li><strong>硬件时间戳：</strong>默认启用 <code class="inline-code">SO_TIMESTAMPING</code> 硬件时间戳（Linux），精度达纳秒级。</li>
+        <li><strong>原始套接字：</strong>通过 goscapy 库构造原始 ICMP 报文，绕过内核 ICMP 限制。</li>
+        <li><strong>速率控制：</strong>内置令牌桶限速，精确控制每秒每目标发包数。</li>
+        <li><strong>实时统计：</strong>分桶聚合统计，按秒报告延迟、丢包和抖动。</li>
+      </ul>
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot sage"></div>
+            <h4>多目标批量探测</h4>
+          </div>
+          <ul>
+            <li>CIDR 网段自动展开</li>
+            <li>DNS 主机名解析</li>
+            <li>逗号分隔多 IP</li>
+            <li>--max-targets 防止过载</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot plum"></div>
+            <h4>硬件时间戳</h4>
+          </div>
+          <ul>
+            <li>默认启用 SO_TIMESTAMPING</li>
+            <li>纳秒级延迟精度</li>
+            <li>Linux 内核支持</li>
+            <li>macOS 回退到软件时间戳</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot terracotta"></div>
+            <h4>IPv4 + IPv6 双栈</h4>
+          </div>
+          <ul>
+            <li>mping — ICMP Echo (IPv4)</li>
+            <li>mping6 — ICMPv6 Echo (IPv6)</li>
+            <li>统一参数和输出格式</li>
+            <li>独立二进制，按需使用</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Principle -->
+    <div class="section" id="principle">
+      <div class="section-title">
+        <div class="section-dot plum"></div>
+        <h3>2. 工作原理</h3>
+      </div>
+      <p>mping 使用原始套接字（raw socket）构造 ICMP Echo Request 报文，发送到目标 IP，并接收 ICMP Echo Reply。与系统自带的 ping 不同，mping 通过 goscapy 库直接构造报文，支持自定义 TOS、TTL 和载荷大小。</p>
+      <pre><code><span class="comment"># ICMP Echo 流程</span>
+<span class="cmd">mping                          Target</span>
+  <span class="value">|-- Echo Request (seq=N) ----&gt;|</span>    <span class="comment"># 发送 ICMP Echo Request</span>
+  <span class="value">|&lt;-- Echo Reply (seq=N) ------|</span>    <span class="comment"># 收到 Echo Reply → 计算延迟</span>
+
+<span class="comment"># 超时</span>
+<span class="cmd">mping                          Target</span>
+  <span class="value">|-- Echo Request (seq=N) ----&gt;|</span>    <span class="comment"># 发送 ICMP Echo Request</span>
+  <span class="value">|   (无响应)                  |</span>    <span class="comment"># 超时 → 计为丢包</span></code></pre>
+      <p>mping6 使用 ICMPv6 Echo Request / Reply，通过原始 IPv6 套接字发送报文。内核自动计算 ICMPv6 校验和（包含 IPv6 伪首部）。</p>
+      <div class="note">
+        <strong>Note：</strong>mping 使用 raw socket 构造 ICMP 报文，需要 <code class="inline-code">sudo</code> 运行。macOS 和 Linux 均支持，但硬件时间戳（<code class="inline-code">SO_TIMESTAMPING</code>）仅 Linux 内核支持。
+      </div>
+    </div>
+    <!-- Section 3: Scenarios -->
+    <div class="section" id="scenarios">
+      <div class="section-title">
+        <div class="section-dot rose"></div>
+        <h3>3. 使用场景</h3>
+      </div>
+      <p>mping / mping6 适用于以下网络质量巡检场景：</p>
+
+      <div class="cards">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot sage"></div>
+            <h4>机房批量连通性检查</h4>
+          </div>
+          <ul>
+            <li>CIDR 网段一次性探测整网段</li>
+            <li>快速定位不可达主机</li>
+            <li>新机房上线前批量验证</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot plum"></div>
+            <h4>网络质量持续监测</h4>
+          </div>
+          <ul>
+            <li>高频探测（100+ pps）暴露间歇丢包</li>
+            <li>纳秒级延迟分布统计</li>
+            <li>配合脚本输出做告警</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot terracotta"></div>
+            <h4>故障排查</h4>
+          </div>
+          <ul>
+            <li>多目标同时 ping，对比延迟差异</li>
+            <li>verbose 模式打印逐包详情</li>
+            <li>指定 TOS/TTL 模拟业务流量</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot teal"></div>
+            <h4>网络割接验证</h4>
+          </div>
+          <ul>
+            <li>割接前基线采集</li>
+            <li>割接后对比延迟和丢包</li>
+            <li>固定发包数（-n）控制测试时长</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot rose"></div>
+            <h4>DNS 解析探测</h4>
+          </div>
+          <ul>
+            <li>直接传主机名，自动解析 IP</li>
+            <li>mping 只取 A 记录，mping6 只取 AAAA</li>
+            <li>适合域名可达性验证</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-dot slate"></div>
+            <h4>IPv6 网络验证</h4>
+          </div>
+          <ul>
+            <li>mping6 支持 IPv6 CIDR 展开和 zone</li>
+            <li>链路本地地址自动加 zone 后缀</li>
+            <li>IPv6 网络质量基线采集</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Comparison -->
+    <div class="section" id="comparison">
+      <div class="section-title">
+        <div class="section-dot slate"></div>
+        <h3>4. 与 bitflip / lidar 的区别</h3>
+      </div>
+      <p>nettools 工具集内的工具各有侧重：</p>
+      <table>
+        <tr><th>特性</th><th>mping / mping6</th><th>bitflip</th><th>lidar</th></tr>
+        <tr><td>探测协议</td><td>ICMP Echo</td><td>UDP</td><td>TCP SYN</td></tr>
+        <tr><td>是否需要服务端</td><td>不需要</td><td>需要</td><td>不需要</td></tr>
+        <tr><td>探测内容</td><td>延迟 + 丢包</td><td>丢包 + bitflip</td><td>可达性</td></tr>
+        <tr><td>多目标支持</td><td>CIDR + DNS + 多 IP</td><td>多 IP</td><td>多 IP</td></tr>
+        <tr><td>硬件时间戳</td><td>支持</td><td>支持</td><td>不支持</td></tr>
+        <tr><td>适用场景</td><td>批量 ICMP 巡检</td><td>UDP 深度检测</td><td>TCP 端口可达性</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip：</strong>需要 ICMP 层面的延迟和丢包检测，使用 mping；需要 UDP 层面的 bitflip 检测，使用 bitflip；只需确认 TCP 端口是否可达，使用 lidar。
+      </div>
+    </div>
+
+    <!-- Section 5: Install -->
+    <div class="section" id="install">
+      <div class="section-title">
+        <div class="section-dot terracotta"></div>
+        <h3>5. 安装</h3>
+      </div>
+
+      <h3>从源码编译</h3>
+      <pre><code><span class="comment"># 克隆仓库</span>
+<span class="cmd">git clone https://github.com/baidu/nettools.git</span>
+<span class="cmd">cd nettools</span>
+
+<span class="comment"># 编译全部工具</span>
+<span class="cmd">make compile</span>
+
+<span class="comment"># 或单独编译</span>
+<span class="cmd">go build -o mping ./cmd/mping/</span>
+<span class="cmd">go build -o mping6 ./cmd/mping6/</span></code></pre>
+
+      <h3>运行要求</h3>
+      <table>
+        <tr><th>要求</th><th>说明</th></tr>
+        <tr><td>root 权限</td><td>需要 <code class="inline-code">sudo</code> 运行，因为 raw socket 构造 ICMP 报文需要特权</td></tr>
+        <tr><td>macOS / Linux</td><td>macOS 通过 raw socket 发送/接收，Linux 支持 SO_TIMESTAMPING 硬件时间戳</td></tr>
+        <tr><td>网络连通</td><td>需要能向目标 IP 发送 ICMP 报文</td></tr>
+      </table>
+
+      <div class="note">
+        <strong>Note：</strong>mping 必须使用 <code class="inline-code">sudo</code> 运行。原始套接字（<code class="inline-code">SOCK_RAW</code>）构造 ICMP 报文需要 root 权限。硬件时间戳（<code class="inline-code">--hwts</code>）仅 Linux 支持，macOS 自动回退到软件时间戳。
+      </div>
+    </div>
+
+    <!-- Section 6: Quick Start -->
+    <div class="section" id="quickstart">
+      <div class="section-title">
+        <div class="section-dot sage"></div>
+        <h3>6. 快速开始</h3>
+      </div>
+
+      <h3>1. 单目标 ping</h3>
+      <pre><code><span class="comment"># 探测单个 IPv4 目标（默认 100 pps）</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2</span></code></pre>
+
+      <h3>2. 多目标探测</h3>
+      <pre><code><span class="comment"># 逗号分隔多个 IP</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2,10.0.0.3,10.0.0.4</span></code></pre>
+
+      <h3>3. CIDR 网段探测</h3>
+      <pre><code><span class="comment"># 探测整个 /24 网段（自动排除网络地址和广播地址）</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.1.0/24</span>
+
+<span class="comment"># 探测 IPv6 /120 子网</span>
+<span class="cmd">sudo ./mping6</span> <span class="flag">-T</span> <span class="value">fd00::0:0/120</span></code></pre>
+
+      <h3>4. DNS 主机名探测</h3>
+      <pre><code><span class="comment"># 自动解析 DNS（mping 取 A 记录，mping6 取 AAAA 记录）</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">www.example.com</span></code></pre>
+
+      <h3>5. 高速率 + 限时探测</h3>
+      <pre><code><span class="comment"># 1000 pps，持续 30 秒</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2</span> <span class="flag">-r</span> <span class="value">1000</span> <span class="flag">-d</span> <span class="value">30s</span></code></pre>
+
+      <h3>6. IPv6 探测</h3>
+      <pre><code><span class="comment"># 探测 IPv6 地址</span>
+<span class="cmd">sudo ./mping6</span> <span class="flag">-T</span> <span class="value">fd00::2</span>
+
+<span class="comment"># 链路本地地址需指定接口</span>
+<span class="cmd">sudo ./mping6</span> <span class="flag">-T</span> <span class="value">fe80::1</span> <span class="flag">-I</span> <span class="value">eth0</span></code></pre>
+    </div>
+
+    <!-- Section 7: Params -->
+    <div class="section" id="params">
+      <div class="section-title">
+        <div class="section-dot plum"></div>
+        <h3>7. 命令行参数详解</h3>
+      </div>
+
+      <h3>mping 参数</h3>
+      <table>
+        <tr><th>参数</th><th>短选项</th><th>默认值</th><th>说明</th></tr>
+        <tr><td><code class="inline-code">--targets</code></td><td><code class="inline-code">-T</code></td><td>&mdash;</td><td>目标 IPv4 地址/CIDR/主机名，逗号分隔（必填）</td></tr>
+        <tr><td><code class="inline-code">--local-addr</code></td><td><code class="inline-code">-l</code></td><td>自动检测</td><td>本地 IPv4 地址</td></tr>
+        <tr><td><code class="inline-code">--interface</code></td><td><code class="inline-code">-I</code></td><td>自动检测</td><td>出接口名称</td></tr>
+        <tr><td><code class="inline-code">--tos</code></td><td><code class="inline-code">-z</code></td><td>0</td><td>IP TOS/DSCP 值</td></tr>
+        <tr><td><code class="inline-code">--ttl</code></td><td></td><td>64</td><td>IP TTL</td></tr>
+        <tr><td><code class="inline-code">--count</code></td><td><code class="inline-code">-c</code></td><td>0</td><td>每个目标最大发包数（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">--duration</code></td><td><code class="inline-code">-d</code></td><td>0</td><td>最大发送时长（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">--delay</code></td><td></td><td>3s</td><td>统计处理延迟（等待在途报文）</td></tr>
+        <tr><td><code class="inline-code">--timeout</code></td><td><code class="inline-code">-t</code></td><td>1s</td><td>Socket 读超时</td></tr>
+        <tr><td><code class="inline-code">--rate</code></td><td><code class="inline-code">-r</code></td><td>100</td><td>每秒每目标发包数（pps）</td></tr>
+        <tr><td><code class="inline-code">--size</code></td><td><code class="inline-code">-s</code></td><td>64</td><td>ICMP 载荷大小（字节，最小 8）</td></tr>
+        <tr><td><code class="inline-code">--verbose</code></td><td></td><td>false</td><td>打印逐包 ICMP 回复详情</td></tr>
+        <tr><td><code class="inline-code">--hwts</code></td><td></td><td>true</td><td>启用硬件时间戳（默认开启）</td></tr>
+        <tr><td><code class="inline-code">--max-targets</code></td><td></td><td>65536</td><td>CIDR/DNS 展开后最大目标数</td></tr>
+        <tr><td><code class="inline-code">--version</code></td><td><code class="inline-code">-V</code></td><td></td><td>打印版本信息</td></tr>
+      </table>
+
+      <h3>mping6 参数</h3>
+      <table>
+        <tr><th>参数</th><th>短选项</th><th>默认值</th><th>说明</th></tr>
+        <tr><td><code class="inline-code">--targets</code></td><td><code class="inline-code">-T</code></td><td>&mdash;</td><td>目标 IPv6 地址/CIDR/主机名，逗号分隔（必填）</td></tr>
+        <tr><td><code class="inline-code">--local-addr</code></td><td><code class="inline-code">-l</code></td><td>自动检测</td><td>本地 IPv6 地址</td></tr>
+        <tr><td><code class="inline-code">--interface</code></td><td><code class="inline-code">-I</code></td><td>自动检测</td><td>出接口名称</td></tr>
+        <tr><td><code class="inline-code">--tc</code></td><td></td><td>0</td><td>IPv6 Traffic Class</td></tr>
+        <tr><td><code class="inline-code">--hlim</code></td><td></td><td>64</td><td>IPv6 Hop Limit</td></tr>
+        <tr><td><code class="inline-code">--count</code></td><td><code class="inline-code">-c</code></td><td>0</td><td>每个目标最大发包数（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">--duration</code></td><td><code class="inline-code">-d</code></td><td>0</td><td>最大发送时长（0 = 无限）</td></tr>
+        <tr><td><code class="inline-code">--delay</code></td><td></td><td>3s</td><td>统计处理延迟</td></tr>
+        <tr><td><code class="inline-code">--timeout</code></td><td><code class="inline-code">-t</code></td><td>1s</td><td>Socket 读超时</td></tr>
+        <tr><td><code class="inline-code">--rate</code></td><td><code class="inline-code">-r</code></td><td>100</td><td>每秒每目标发包数（pps）</td></tr>
+        <tr><td><code class="inline-code">--size</code></td><td><code class="inline-code">-s</code></td><td>64</td><td>ICMPv6 载荷大小（字节，最小 8）</td></tr>
+        <tr><td><code class="inline-code">--verbose</code></td><td></td><td>false</td><td>打印逐包 ICMPv6 回复详情</td></tr>
+        <tr><td><code class="inline-code">--hwts</code></td><td></td><td>true</td><td>启用硬件时间戳</td></tr>
+        <tr><td><code class="inline-code">--max-targets</code></td><td></td><td>65536</td><td>CIDR/DNS 展开后最大目标数</td></tr>
+        <tr><td><code class="inline-code">--version</code></td><td><code class="inline-code">-V</code></td><td></td><td>打印版本信息</td></tr>
+      </table>
+
+      <div class="tip">
+        <strong>Tip：</strong>mping 支持位置参数作为目标，例如 <code class="inline-code">sudo ./mping 10.0.0.2 10.0.0.3</code> 等价于 <code class="inline-code">sudo ./mping -T 10.0.0.2,10.0.0.3</code>。CIDR 展开和 DNS 解析也同时生效。
+      </div>
+    </div>
+
+    <!-- Section 8: Output -->
+    <div class="section" id="output">
+      <div class="section-title">
+        <div class="section-dot sage"></div>
+        <h3>8. 输出解读</h3>
+      </div>
+
+      <h3>启动日志</h3>
+      <pre><code><span class="value">[INFO]</span> configured peer 10.0.0.2, seq 1234567890
+<span class="value">[INFO]</span> configured peer 10.0.0.3, seq 9876543210
+<span class="value">[INFO]</span> client TOS: 0, span: 1s</code></pre>
+      <p>启动时打印每个目标的配置信息、初始序列号和全局参数。</p>
+
+      <h3>统计报告</h3>
+      <pre><code><span class="value">[WARN]</span> 21:37:14, [10.0.0.1 -&gt; 10.0.0.2], sent: 100, received: 98, loss: 2.00%, avg: 0.35ms, min: 0.21ms, max: 1.02ms
+<span class="value">[INFO]</span> 21:37:15, [10.0.0.1 -&gt; 10.0.0.2], sent: 100, received: 100, loss: 0.00%, avg: 0.33ms, min: 0.20ms, max: 0.45ms</code></pre>
+      <table>
+        <tr><th>字段</th><th>说明</th></tr>
+        <tr><td><code class="inline-code">sent</code></td><td>该时间窗口内发送的探测包总数</td></tr>
+        <tr><td><code class="inline-code">received</code></td><td>收到 Echo Reply 的数量</td></tr>
+        <tr><td><code class="inline-code">loss</code></td><td>丢包率（%）</td></tr>
+        <tr><td><code class="inline-code">avg</code></td><td>平均往返延迟</td></tr>
+        <tr><td><code class="inline-code">min</code></td><td>最小往返延迟</td></tr>
+        <tr><td><code class="inline-code">max</code></td><td>最大往返延迟</td></tr>
+      </table>
+
+      <h3>日志级别</h3>
+      <table>
+        <tr><th>级别</th><th>条件</th><th>含义</th></tr>
+        <tr><td><code class="inline-code">[INFO]</code></td><td>loss = 0%</td><td>全部收到回复，网络正常</td></tr>
+        <tr><td><code class="inline-code">[WARN]</code></td><td>loss &gt; 0%</td><td>存在丢包</td></tr>
+      </table>
+
+      <div class="note">
+        <strong>Note：</strong>首次统计报告会在启动 <code class="inline-code">delay</code>（默认 3 秒）后出现。这是为了等待在途报文返回，确保统计的准确性。
+      </div>
+    </div>
+
+    <!-- Section 9: Examples -->
+    <div class="section" id="examples">
+      <div class="section-title">
+        <div class="section-dot terracotta"></div>
+        <h3>9. 使用示例</h3>
+      </div>
+
+      <h3>机房内批量连通性检查</h3>
+      <pre><code><span class="comment"># 探测 /24 网段所有主机</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.1.0/24</span> <span class="flag">-r</span> <span class="value">50</span> <span class="flag">-d</span> <span class="value">60s</span></code></pre>
+
+      <h3>多网段 + 主机名混合探测</h3>
+      <pre><code><span class="comment"># 同时探测网段、单 IP 和域名</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.1.0/24,10.0.2.100,www.example.com</span></code></pre>
+
+      <h3>高速率压力测试</h3>
+      <pre><code><span class="comment"># 1000 pps 持续 5 分钟</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2</span> <span class="flag">-r</span> <span class="value">1000</span> <span class="flag">-d</span> <span class="value">5m</span> <span class="flag">-s</span> <span class="value">128</span></code></pre>
+
+      <h3>指定 TOS 和 TTL</h3>
+      <pre><code><span class="comment"># 模拟业务流量的 TOS 和 TTL</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2</span> <span class="flag">-z</span> <span class="value">184</span> <span class="flag">--ttl</span> <span class="value">32</span></code></pre>
+
+      <h3>固定发包数</h3>
+      <pre><code><span class="comment"># 每个目标发 1000 个包后停止</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2,10.0.0.3</span> <span class="flag">-c</span> <span class="value">1000</span></code></pre>
+
+      <h3>IPv6 CIDR 探测</h3>
+      <pre><code><span class="comment"># 探测 /120 子网（最多 256 个地址）</span>
+<span class="cmd">sudo ./mping6</span> <span class="flag">-T</span> <span class="value">fd00::0:0/120</span>
+
+<span class="comment"># 探测链路本地地址（需指定接口）</span>
+<span class="cmd">sudo ./mping6</span> <span class="flag">-T</span> <span class="value">fe80::1</span> <span class="flag">-I</span> <span class="value">eth0</span></code></pre>
+
+      <h3>Verbose 模式</h3>
+      <pre><code><span class="comment"># 打印逐包 ICMP 回复详情</span>
+<span class="cmd">sudo ./mping</span> <span class="flag">-T</span> <span class="value">10.0.0.2</span> <span class="flag">--verbose</span></code></pre>
+    </div>
+
+    <!-- Section 10: FAQ -->
+    <div class="section" id="faq">
+      <div class="section-title">
+        <div class="section-dot terracotta"></div>
+        <h3>10. FAQ</h3>
+      </div>
+
+      <h3>Q: mping 和系统 ping 有什么区别?</h3>
+      <p>系统 ping 只支持单目标。mping 支持多目标并行探测、CIDR 网段展开、DNS 解析，并且默认启用硬件时间戳，适合大规模批量巡检。</p>
+
+      <h3>Q: 为什么必须 sudo 运行?</h3>
+      <p>mping 使用 raw socket（<code class="inline-code">SOCK_RAW</code>）构造 ICMP Echo Request 报文，这需要 root 权限。内核对普通用户的 raw socket 访问有限制。</p>
+
+      <h3>Q: CIDR 展开后目标太多怎么办?</h3>
+      <p>使用 <code class="inline-code">--max-targets</code> 限制最大目标数（默认 65536）。超过限制时，mping 会截断并打印警告。IPv6 的 CIDR 展开还额外限制 /112–/128 前缀范围，防止意外展开超大网段。</p>
+
+      <h3>Q: 硬件时间戳是什么?</h3>
+      <p>硬件时间戳（<code class="inline-code">SO_TIMESTAMPING</code>）由网卡在报文收发时打上时间戳，精度可达纳秒级，不受内核处理延迟影响。仅 Linux 支持，macOS 自动回退到软件时间戳。</p>
+
+      <h3>Q: 如何停止 mping?</h3>
+      <p>按 <code class="inline-code">Ctrl+C</code> 发送 SIGINT 信号。mping 会等待 delay 时间让在途报文返回后退出。如果指定了 <code class="inline-code">-c</code> 或 <code class="inline-code">-d</code>，到达限制后也会自动停止。</p>
+
+      <h3>Q: --rate 应该设多少?</h3>
+      <p>默认 100 pps 适合一般巡检。高速率（500–5000 pps）适合压力测试或高精度丢包检测。注意过高速率可能触发 ICMP 限速。</p>
+
+      <h3>Q: mping6 的 zone 参数怎么用?</h3>
+      <p>链路本地地址（<code class="inline-code">fe80::</code>）需要指定接口 zone。通过 <code class="inline-code">-I eth0</code> 指定出接口，mping6 会自动处理 zone 后缀。</p>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">
+      nettools &middot; Baidu System Department &middot; github.com/baidu/nettools
+    </p>
+  </div>
+</body>
+</html>
