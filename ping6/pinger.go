@@ -125,19 +125,17 @@ func (p *Pinger) Run(ctx context.Context) error {
 // On macOS, SOCK_DGRAM+IPPROTO_ICMPV6 is required because SOCK_RAW sockets
 // do not receive ICMPv6 Echo Replies (the kernel processes them internally).
 func (p *Pinger) openConn() error {
-	ip := net.ParseIP(p.conf.LocalAddr)
-	if ip == nil {
-		ip = net.IPv6unspecified
-	}
-
 	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_ICMPV6)
 	if err != nil {
 		return fmt.Errorf("socket: %w", err)
 	}
 
-	// Bind to local address.
+	// Bind to :: (any address). The kernel will pick the correct source
+	// address for outgoing packets based on the routing table. Binding to
+	// a specific address (especially a temporary IPv6 privacy address)
+	// can prevent the socket from receiving Echo Replies addressed to
+	// a different address on the same interface.
 	sa := &syscall.SockaddrInet6{}
-	copy(sa.Addr[:], ip.To16())
 	if err := syscall.Bind(fd, sa); err != nil {
 		_ = syscall.Close(fd)
 		return fmt.Errorf("bind: %w", err)
