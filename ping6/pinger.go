@@ -2,7 +2,6 @@ package ping6
 
 import (
 	"context"
-	cryptorand "crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -13,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/baidu/nettools/checksum"
 	"github.com/baidu/nettools/stat"
 	"github.com/smallnest/goscapy/pkg/layers"
 	"github.com/smallnest/goscapy/pkg/packet"
@@ -47,6 +47,8 @@ type Pinger struct {
 	targets []*target
 	pid     uint16
 
+	salts *checksum.Salts // salt patterns for bit-flip detection
+
 	fd int
 	f  *os.File // keeps fd alive for timestamp options
 
@@ -77,6 +79,7 @@ func NewPinger(conf *Config, limiter ratelimit.Limiter, logger *log.Logger) *Pin
 		logger:  logger,
 		targets: targets,
 		pid:     pid,
+		salts:   checksum.NewSalts(conf.Size - timestampLen),
 	}
 }
 
@@ -187,9 +190,6 @@ func (p *Pinger) buildICMPv6Pkt(t *target, seq uint16, payload []byte) ([]byte, 
 func (p *Pinger) serveSend(ctx context.Context, stopCh chan struct{}) error {
 	defer p.closeOnce.Do(func() { _ = p.f.Close() })
 
-	randPayload := make([]byte, p.conf.Size-timestampLen)
-	_, _ = cryptorand.Read(randPayload)
-
 	var count int
 	startTime := time.Now()
 
@@ -220,10 +220,10 @@ func (p *Pinger) serveSend(ctx context.Context, stopCh chan struct{}) error {
 			seq := uint16(t.seq & 0xFFFF)
 			now := time.Now().UnixNano()
 
-			// Build payload: timestamp (8 bytes LE) + random padding.
+			// Build payload: timestamp (8 bytes LE) + deterministic salt.
 			sendPayload := make([]byte, p.conf.Size)
 			binary.LittleEndian.PutUint64(sendPayload[:timestampLen], uint64(now))
-			copy(sendPayload[timestampLen:], randPayload)
+			copy(sendPayload[timestampLen:], p.salts.Get(t.seq%4))
 
 			data, err := p.buildICMPv6Pkt(t, seq, sendPayload)
 			if err != nil {
@@ -373,12 +373,14 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 	// Extract send timestamp from ICMP payload.
 	var sendTS int64
 	var payloadLen int
+	var data []byte
 	dataVal, err := echoLayer.Get("data")
 	if err == nil {
-		if data, ok := dataVal.([]byte); ok {
-			payloadLen = len(data)
+		if d, ok := dataVal.([]byte); ok {
+			data = d
+			payloadLen = len(d)
 			if payloadLen >= timestampLen {
-				sendTS = int64(binary.LittleEndian.Uint64(data[:timestampLen]))
+				sendTS = int64(binary.LittleEndian.Uint64(d[:timestampLen]))
 			}
 		}
 	}
@@ -386,6 +388,22 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 	rtt := rxts - sendTS
 	if sendTS == 0 {
 		rtt = 0
+	}
+
+	// Bit-flip detection: compare received salt against expected pattern.
+	hasBitflip := false
+	if data != nil && payloadLen == p.conf.Size && payloadLen > timestampLen {
+		expected := p.salts.Get(uint64(icmpSeq))
+		received := data[timestampLen:]
+		if p.salts.CheckBitflip(received, expected) {
+			hasBitflip = true
+			for i, v := range received {
+				if v != expected[i] {
+					p.logger.Printf("[ERRO] [bitflip] %s: %02x->%02x, idx: %d, seq: %d",
+						t.addr, expected[i], v, i, icmpSeq)
+				}
+			}
+		}
 	}
 
 	// Try to get hop limit from IPv6 layer (if present).
@@ -403,7 +421,7 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 			payloadLen, t.addr, icmpSeq, hlim, rttMs)
 	}
 
-	t.stat.Received(uint64(icmpSeq), rxts, rtt, false)
+	t.stat.Received(uint64(icmpSeq), rxts, rtt, hasBitflip)
 }
 
 // handleICMPv6Error logs ICMPv6 destination unreachable or time exceeded messages.
