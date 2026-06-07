@@ -117,6 +117,7 @@ package:
 	mv $(BINARY6) $(OUTDIR)/
 	mv $(BINARYBA) $(OUTDIR)/
 	mv $(BINARYMP) $(OUTDIR)/
+	mv $(BINARYMP6) $(OUTDIR)/
 
 # make lint
 lint:
