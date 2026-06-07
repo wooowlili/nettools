@@ -121,20 +121,18 @@ func (p *Pinger) Run(ctx context.Context) error {
 	return <-done
 }
 
-// openConn creates a SOCK_DGRAM ICMPv6 socket.
-// On macOS, SOCK_DGRAM+IPPROTO_ICMPV6 is required because SOCK_RAW sockets
-// do not receive ICMPv6 Echo Replies (the kernel processes them internally).
+// openConn creates a SOCK_RAW ICMPv6 socket bound to ::.
+// We use SOCK_RAW (not SOCK_DGRAM) because on macOS, SOCK_DGRAM requires
+// connect() to register the ICMPv6 ID with the kernel for Echo Reply matching.
+// With SOCK_RAW, we provide the full ICMPv6 header ourselves.
 func (p *Pinger) openConn() error {
-	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_ICMPV6)
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_RAW, syscall.IPPROTO_ICMPV6)
 	if err != nil {
 		return fmt.Errorf("socket: %w", err)
 	}
 
-	// Bind to :: (any address). The kernel will pick the correct source
-	// address for outgoing packets based on the routing table. Binding to
-	// a specific address (especially a temporary IPv6 privacy address)
-	// can prevent the socket from receiving Echo Replies addressed to
-	// a different address on the same interface.
+	// Bind to :: (any address) so the socket receives ICMPv6 packets
+	// addressed to any local IPv6 address, not just a specific one.
 	sa := &syscall.SockaddrInet6{}
 	if err := syscall.Bind(fd, sa); err != nil {
 		_ = syscall.Close(fd)
@@ -160,21 +158,28 @@ func (p *Pinger) openConn() error {
 	return nil
 }
 
-// buildICMPv6Echo constructs the ICMPv6 Echo Request body (id + seq + data).
-// With SOCK_DGRAM+IPPROTO_ICMPV6, the kernel adds the ICMPv6 header (type, code,
-// checksum) and the IPv6 header. We only provide the Echo body.
-func (p *Pinger) buildICMPv6Echo(t *target, seq uint16, payload []byte) ([]byte, error) {
-	// Build just the ICMPv6 Echo layer: id(2) + seq(2) + data(variable).
-	// The kernel will prepend ICMPv6 header (type=128, code=0, checksum).
+// buildICMPv6Pkt constructs a full ICMPv6 Echo Request packet (header + body).
+// Returns bytes starting from the ICMPv6 header. The kernel adds the IPv6 header.
+func (p *Pinger) buildICMPv6Pkt(t *target, seq uint16, payload []byte) ([]byte, error) {
+	ipv6 := layers.NewIPv6()
+	ipv6.Set("src", p.conf.LocalAddr)
+	ipv6.Set("dst", t.addr)
+	ipv6.Set("hlim", uint8(p.conf.HopLimit))
+	if p.conf.TC > 0 {
+		ipv6.Set("ver_tc_fl", layers.MakeIPv6VerTCFL(uint8(p.conf.TC), 0))
+	}
+
+	icmpHdr := layers.NewICMPv6()
+	icmpHdr.Set("type", layers.ICMPv6EchoRequest)
+	icmpHdr.Set("code", uint8(0))
+
 	echoBody := layers.NewICMPv6Echo(t.icmpID, seq)
 	echoBody.Set("data", payload)
 
-	buf := make([]byte, echoBody.WireSize())
-	n, err := echoBody.SerializeInto(buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf[:n], nil
+	pkt := packet.NewFrom(ipv6, icmpHdr, echoBody)
+
+	// Build from layer 1 (ICMPv6) onwards — the kernel adds the IPv6 header.
+	return pkt.BuildFrom(1)
 }
 
 // serveSend is the main send loop. It sends ICMPv6 Echo Requests to all targets
@@ -220,7 +225,7 @@ func (p *Pinger) serveSend(ctx context.Context, stopCh chan struct{}) error {
 			binary.LittleEndian.PutUint64(sendPayload[:timestampLen], uint64(now))
 			copy(sendPayload[timestampLen:], randPayload)
 
-			data, err := p.buildICMPv6Echo(t, seq, sendPayload)
+			data, err := p.buildICMPv6Pkt(t, seq, sendPayload)
 			if err != nil {
 				p.logger.Printf("[ERRO] build packet for %s: %v", t.addr, err)
 				continue
@@ -286,13 +291,17 @@ func (p *Pinger) serveRecv(stopCh <-chan struct{}) error {
 	}
 }
 
-// processPacket parses raw ICMPv6 packet bytes and routes to the appropriate handler.
-// With SOCK_DGRAM, data starts at the ICMPv6 header (kernel strips IPv6 header).
+// processPacket parses raw bytes from the ICMPv6 socket.
+// With SOCK_RAW on macOS, data may include the IPv6 header or start at ICMPv6.
 func (p *Pinger) processPacket(raw []byte, from syscall.Sockaddr, rxts int64) {
-	pkt, err := packet.DissectByProto(raw, "ICMPv6")
+	// Try IPv6 first, fall back to ICMPv6 (macOS may strip the IPv6 header).
+	pkt, err := packet.DissectByProto(raw, "IPv6")
 	if err != nil {
-		p.logger.Printf("[DEBUG] dissect failed (%d bytes): %v", len(raw), err)
-		return
+		pkt, err = packet.DissectByProto(raw, "ICMPv6")
+		if err != nil {
+			p.logger.Printf("[DEBUG] dissect failed (%d bytes): %v", len(raw), err)
+			return
+		}
 	}
 
 	icmpLayer := pkt.GetLayer("ICMPv6")
@@ -330,21 +339,25 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 	// The "ICMPv6 Echo Reply" sub-layer has id and seq.
 	echoLayer := pkt.GetLayer("ICMPv6 Echo Reply")
 	if echoLayer == nil {
+		p.logger.Printf("[DEBUG] no Echo Reply layer")
 		return
 	}
 
 	idVal, err := echoLayer.Get("id")
 	if err != nil {
+		p.logger.Printf("[DEBUG] no id in echo reply: %v", err)
 		return
 	}
 	icmpID, ok := idVal.(uint16)
 	if !ok {
+		p.logger.Printf("[DEBUG] id is %T not uint16", idVal)
 		return
 	}
 
 	// Find target by ICMP ID.
 	t := p.findTargetByICMPID(icmpID)
 	if t == nil {
+		p.logger.Printf("[DEBUG] no target for icmp_id=%d", icmpID)
 		return
 	}
 
@@ -352,15 +365,18 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 	srcStr := sockaddrToString(from)
 	srcIP := net.ParseIP(srcStr)
 	if srcIP == nil || !srcIP.Equal(t.ip) {
+		p.logger.Printf("[DEBUG] src mismatch: got %s, want %s", srcStr, t.ip)
 		return
 	}
 
 	seqVal, err := echoLayer.Get("seq")
 	if err != nil {
+		p.logger.Printf("[DEBUG] no seq in echo reply: %v", err)
 		return
 	}
 	icmpSeq, ok := seqVal.(uint16)
 	if !ok {
+		p.logger.Printf("[DEBUG] seq is %T not uint16", seqVal)
 		return
 	}
 
@@ -382,12 +398,22 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 		rtt = 0
 	}
 
+	// Try to get hop limit from IPv6 layer (if present).
+	var hlim uint8
+	if ipv6Layer := pkt.GetLayer("IPv6"); ipv6Layer != nil {
+		if hlimVal, err := ipv6Layer.Get("hlim"); err == nil && hlimVal != nil {
+			hlim, _ = hlimVal.(uint8)
+		}
+	}
+
 	// Per-reply output (only when verbose).
 	if p.conf.Verbose {
 		rttMs := float64(rtt) / float64(time.Millisecond)
-		p.logger.Printf("[INFO] %d bytes from %s: icmp_seq=%d time=%.3fms",
-			payloadLen, t.addr, icmpSeq, rttMs)
+		p.logger.Printf("[INFO] %d bytes from %s: icmp_seq=%d hlim=%d time=%.3fms",
+			payloadLen, t.addr, icmpSeq, hlim, rttMs)
 	}
+
+	p.logger.Printf("[DEBUG] reply matched: target=%s seq=%d rtt=%dns", t.addr, icmpSeq, rtt)
 
 	t.stat.Received(uint64(icmpSeq), rxts, rtt, false)
 }
