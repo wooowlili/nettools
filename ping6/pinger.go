@@ -301,29 +301,23 @@ func (p *Pinger) processPacket(raw []byte, from syscall.Sockaddr, rxts int64) {
 		// Fall back to IPv6+ICMPv6 (Linux includes the IPv6 header).
 		pkt, err = packet.DissectByProto(raw, "IPv6")
 		if err != nil {
-			p.logger.Printf("[DEBUG] dissect failed (%d bytes): %v", len(raw), err)
 			return
 		}
 	}
 
 	icmpLayer := pkt.GetLayer("ICMPv6")
 	if icmpLayer == nil {
-		p.logger.Printf("[DEBUG] no ICMPv6 layer")
 		return
 	}
 
 	icmpTypeVal, err := icmpLayer.Get("type")
 	if err != nil {
-		p.logger.Printf("[DEBUG] no icmp type: %v", err)
 		return
 	}
 	icmpType, ok := icmpTypeVal.(uint8)
 	if !ok {
-		p.logger.Printf("[DEBUG] icmp type is %T not uint8", icmpTypeVal)
 		return
 	}
-
-	p.logger.Printf("[DEBUG] recv ICMPv6 type=%d from %s", icmpType, sockaddrToString(from))
 
 	switch icmpType {
 	case icmpv6EchoReply:
@@ -331,8 +325,6 @@ func (p *Pinger) processPacket(raw []byte, from syscall.Sockaddr, rxts int64) {
 	case icmpv6DestUnreach, icmpv6TimeExceed:
 		srcStr := sockaddrToString(from)
 		p.handleICMPv6Error(srcStr, icmpType)
-	default:
-		p.logger.Printf("[DEBUG] unhandled ICMPv6 type=%d", icmpType)
 	}
 }
 
@@ -341,25 +333,21 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 	// The "ICMPv6 Echo Reply" sub-layer has id and seq.
 	echoLayer := pkt.GetLayer("ICMPv6 Echo Reply")
 	if echoLayer == nil {
-		p.logger.Printf("[DEBUG] no Echo Reply layer")
 		return
 	}
 
 	idVal, err := echoLayer.Get("id")
 	if err != nil {
-		p.logger.Printf("[DEBUG] no id in echo reply: %v", err)
 		return
 	}
 	icmpID, ok := idVal.(uint16)
 	if !ok {
-		p.logger.Printf("[DEBUG] id is %T not uint16", idVal)
 		return
 	}
 
 	// Find target by ICMP ID.
 	t := p.findTargetByICMPID(icmpID)
 	if t == nil {
-		p.logger.Printf("[DEBUG] no target for icmp_id=%d", icmpID)
 		return
 	}
 
@@ -367,18 +355,15 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 	srcStr := sockaddrToString(from)
 	srcIP := net.ParseIP(srcStr)
 	if srcIP == nil || !srcIP.Equal(t.ip) {
-		p.logger.Printf("[DEBUG] src mismatch: got %s, want %s", srcStr, t.ip)
 		return
 	}
 
 	seqVal, err := echoLayer.Get("seq")
 	if err != nil {
-		p.logger.Printf("[DEBUG] no seq in echo reply: %v", err)
 		return
 	}
 	icmpSeq, ok := seqVal.(uint16)
 	if !ok {
-		p.logger.Printf("[DEBUG] seq is %T not uint16", seqVal)
 		return
 	}
 
@@ -414,8 +399,6 @@ func (p *Pinger) handleEchoReply(pkt *packet.Packet, from syscall.Sockaddr, rxts
 		p.logger.Printf("[INFO] %d bytes from %s: icmp_seq=%d hlim=%d time=%.3fms",
 			payloadLen, t.addr, icmpSeq, hlim, rttMs)
 	}
-
-	p.logger.Printf("[DEBUG] reply matched: target=%s seq=%d rtt=%dns", t.addr, icmpSeq, rtt)
 
 	t.stat.Received(uint64(icmpSeq), rxts, rtt, false)
 }
