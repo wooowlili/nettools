@@ -12,8 +12,8 @@
 - **bitflip6**: bitflip 的 IPv6 版本，用于 IPv6 网络诊断。
 - **baize**: 配置驱动的网络质量持续监控工具，适合长期部署场景。
 - **lidar**: TCP SYN 网络可达性探测工具，无需在远端部署任何软件。
-- **mping**: 多目标 ICMP Echo 批量 ping 工具，支持 CIDR 展开、DNS 解析和硬件时间戳。
-- **mping6**: mping 的 IPv6 版本，用于 ICMPv6 Echo 探测。
+- **mping**: 多目标 ICMP Echo 批量 ping 工具，支持 CIDR 展开、DNS 解析、硬件时间戳和改包检测。
+- **mping6**: mping 的 IPv6 版本，用于 ICMPv6 Echo 探测，支持改包检测。
 
 > 百度系统部出品
 
@@ -150,7 +150,7 @@ sudo ./bitflip6 -r client -s fd00::2
 
 ## mping
 
-多目标 ICMP Echo 批量 ping 工具，支持 CIDR 网段展开、DNS 主机名解析、硬件时间戳（Linux）和高速率探测。mping6 是 IPv6 版本。
+多目标 ICMP Echo 批量 ping 工具，支持 CIDR 网段展开、DNS 主机名解析、硬件时间戳（Linux）、高速率探测和改包检测。mping6 是 IPv6 版本。
 
 **核心特性：**
 - **CIDR 展开：** 传入网段（如 `10.0.1.0/24`）自动展开所有主机地址。IPv6 支持 `/112`–`/128` 前缀，`--max-targets` 防止意外展开过大网段。
@@ -158,6 +158,7 @@ sudo ./bitflip6 -r client -s fd00::2
 - **硬件时间戳：** Linux 默认启用 `SO_TIMESTAMPING`，纳秒级延迟精度。macOS 自动回退到软件时间戳。
 - **速率控制：** 内置令牌桶限速，精确控制每目标每秒发包数。
 - **多目标混合：** 逗号分隔 IP、CIDR 网段、DNS 主机名可混合使用。
+- **改包检测：** 通过在每个探测包中嵌入已知 salt 填充模式，检测 ICMP 回复报文中的比特翻转错误。
 
 ### 快速开始
 

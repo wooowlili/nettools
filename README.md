@@ -12,8 +12,8 @@ A suite of network diagnostic tools developed by Baidu's physical network black-
 - **bitflip6**: IPv6 variant of bitflip for IPv6 network diagnostics.
 - **baize**: Configuration-driven continuous network quality monitoring tool for long-term deployment.
 - **lidar**: TCP SYN probing tool for network reachability detection — no server-side deployment required.
-- **mping**: Multi-target ICMP Echo ping tool with CIDR expansion, DNS resolution, and hardware timestamping.
-- **mping6**: IPv6 variant of mping for ICMPv6 Echo probing.
+- **mping**: Multi-target ICMP Echo ping tool with CIDR expansion, DNS resolution, hardware timestamping, and packet corruption detection.
+- **mping6**: IPv6 variant of mping for ICMPv6 Echo probing with packet corruption detection.
 
 > Produced by Baidu System Department
 
@@ -157,7 +157,7 @@ sudo ./bitflip6 -r client -s fd00::2
 
 ## mping
 
-A multi-target ICMP Echo ping tool for batch network quality inspection. Supports CIDR range expansion, DNS hostname resolution, hardware timestamping (Linux), and high-rate probing. mping6 is the IPv6 variant.
+A multi-target ICMP Echo ping tool for batch network quality inspection. Supports CIDR range expansion, DNS hostname resolution, hardware timestamping (Linux), high-rate probing, and packet corruption detection. mping6 is the IPv6 variant.
 
 **Key features:**
 - **CIDR expansion:** Pass a network prefix (e.g. `10.0.1.0/24`) and mping automatically expands to all host addresses. IPv6 supports `/112`–`/128` prefixes with a `--max-targets` safety cap.
@@ -165,6 +165,7 @@ A multi-target ICMP Echo ping tool for batch network quality inspection. Support
 - **Hardware timestamps:** Enabled by default on Linux via `SO_TIMESTAMPING` for nanosecond latency accuracy. Falls back to software timestamps on macOS.
 - **Rate control:** Built-in token bucket rate limiter for precise per-target pps control.
 - **Multi-target:** Comma-separated IPs, CIDR ranges, and DNS hostnames can be mixed freely.
+- **Packet corruption detection:** Detects bit-flip errors in ICMP reply payloads by embedding known salt patterns in each probe packet.
 
 ### Quick Start
 
