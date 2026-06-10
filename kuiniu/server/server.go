@@ -61,15 +61,19 @@ func New(conf *config.Config, statProcessor *stat.Processor, sender stat.Sender,
 
 // Run starts GPU receivers and CPU sender. It blocks until ctx is cancelled.
 func (s *Server) Run(ctx context.Context) error {
-	// Create CPU sender for echoing packets back
+	s.logger.Printf("[INFO] [server] creating CPU sender on %s...", s.conf.LocalCPUAddr)
+
 	localCPUIP := net.ParseIP(s.conf.LocalCPUAddr)
 	cpuSender, err := transport.NewUDPSender(localCPUIP, s.conf.TOS, 64, s.logger)
 	if err != nil {
+		s.logger.Printf("[ERRO] [server] failed to create CPU sender on %s: %v", localCPUIP, err)
 		return err
 	}
 	defer cpuSender.Close()
+	s.logger.Printf("[INFO] [server] CPU sender bound to %s", localCPUIP)
 
 	// Create GPU receivers — one per GPU IP
+	s.logger.Printf("[INFO] [server] creating GPU receivers...")
 	for i, gpuAddr := range s.conf.LocalGPUAddrs {
 		gpuIP := net.ParseIP(gpuAddr)
 		r, err := transport.NewUDPReceiver(gpuIP, s.conf.TOS, s.conf.ServerPortRange, s.logger)
@@ -78,10 +82,11 @@ func (s *Server) Run(ctx context.Context) error {
 			continue
 		}
 		defer r.Close()
-		s.logger.Printf("[INFO] [GPU-%d] listening on %s", i, gpuAddr)
+		s.logger.Printf("[INFO] [GPU-%d] listening on %s, ports %d-%d", i, gpuAddr, s.conf.ServerPortRange.Min, s.conf.ServerPortRange.Max)
 		go s.readLoop(ctx, r, cpuSender, i)
 	}
 
+	s.logger.Printf("[INFO] [server] all GPU receivers started, %d listening", len(s.conf.LocalGPUAddrs))
 	<-ctx.Done()
 	return nil
 }

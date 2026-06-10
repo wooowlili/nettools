@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -307,6 +308,7 @@ func setupLog(dir string, maxAgeDays int) *rotateWriter {
 		maxAgeDays = 7
 	}
 	w := &rotateWriter{dir: dir, maxAge: maxAgeDays}
-	log.SetOutput(w)
+	// Write to both file and stderr so the user sees output in the terminal
+	log.SetOutput(io.MultiWriter(os.Stderr, w))
 	return w
 }

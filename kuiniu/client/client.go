@@ -101,15 +101,21 @@ func NewClient(conf *config.Config, limiter ratelimit.Limiter,
 
 // Run starts the client: opens GPU senders and CPU receivers, then enters the send loop.
 func (c *Client) Run(ctx context.Context) error {
+	c.logger.Printf("[INFO] [client] creating GPU senders...")
+
 	gpuSenders := make(map[int]transport.Sender)
 	for _, p := range c.peers {
 		s, err := transport.NewUDPSender(p.localGPUIP, c.conf.TOS, 64, c.logger)
 		if err != nil {
+			c.logger.Printf("[ERRO] [GPU-%d] failed to create sender on %s: %v", p.gpuIndex, p.localGPUIP, err)
 			return err
 		}
 		gpuSenders[p.gpuIndex] = s
 		defer s.Close()
+		c.logger.Printf("[INFO] [GPU-%d] sender bound to %s (TOS=%d)", p.gpuIndex, p.localGPUIP, c.conf.TOS)
 	}
+
+	c.logger.Printf("[INFO] [client] creating CPU receivers on %s...", c.conf.LocalCPUAddr)
 
 	pr := c.conf.ClientPortRange
 	portCount := pr.Max - pr.Min + 1
@@ -124,17 +130,23 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 		r, err := transport.NewUDPReceiver(localCPUIP, c.conf.TOS, config.PortRange{Min: i, Max: upper}, c.logger)
 		if err != nil {
+			c.logger.Printf("[ERRO] [client] failed to create CPU receiver on %s (ports %d-%d): %v", localCPUIP, i, upper, err)
 			return err
 		}
 		c.cpuReceivers = append(c.cpuReceivers, r)
 		defer r.Close()
+		c.logger.Printf("[INFO] [client] CPU receiver on %s, ports %d-%d", localCPUIP, i, upper)
 	}
 
 	for _, r := range c.cpuReceivers {
 		go c.readLoop(ctx, r)
 	}
 
+	c.logger.Printf("[INFO] [client] waiting 3s for receivers to stabilize...")
 	time.Sleep(3 * time.Second)
+
+	c.logger.Printf("[INFO] [client] starting probe: %d GPU pairs, rate=%d/span, span=%v, msgLen=%d",
+		len(c.peers), c.conf.RateInSpan, c.conf.Span, c.conf.MsgLen)
 	return c.serveWrite(ctx, gpuSenders)
 }
 
