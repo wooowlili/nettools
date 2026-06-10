@@ -23,3 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - kuiniu client peer matching now uses the correct IP field
+- kuiniu server now echoes via the matching GPU network and skips self-echo loops under `role=both`
+
+### Tests
+- Unit tests for `kuiniu/config` (`Validate`: role, GPU pair counts, IPv4-only, port-range and span parsing)
+- Unit tests for `kuiniu/client`, `kuiniu/server`, and `kuiniu/transport`
+- Unit tests for `ping`, `ping6`, and `util.salts`
