@@ -198,16 +198,14 @@ func main() {
 		c, err := client.NewClient(&cfg, limiter, proc, nil, logger)
 		if err != nil {
 			log.Printf("[ERRO] client init: %v", err)
-			cancel()
-			return
+		} else {
+			go func() {
+				if err := c.Run(ctx); err != nil {
+					log.Printf("[ERRO] client: %v", err)
+				}
+			}()
+			log.Printf("[INFO] kuiniu client started, %d GPU pairs", cfg.GPUPairCount())
 		}
-		go func() {
-			if err := c.Run(ctx); err != nil {
-				log.Printf("[ERRO] client: %v", err)
-				cancel()
-			}
-		}()
-		log.Printf("[INFO] kuiniu client started, %d GPU pairs", cfg.GPUPairCount())
 	}
 
 	if runServer {
@@ -215,7 +213,6 @@ func main() {
 		go func() {
 			if err := s.Run(ctx); err != nil {
 				log.Printf("[ERRO] server: %v", err)
-				cancel()
 			}
 		}()
 		log.Printf("[INFO] kuiniu server started, %d GPU IPs", cfg.GPUPairCount())
