@@ -85,6 +85,20 @@ builds:
     ldflags:
       - -s -w -X github.com/baidu/nettools/version.Version={{.Version}} -X github.com/baidu/nettools/version.Commit={{.Commit}} -X github.com/baidu/nettools/version.Date={{.Date}}
 
+  - id: kuiniu
+    main: ./cmd/kuiniu
+    binary: kuiniu
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/baidu/nettools/version.Version={{.Version}} -X github.com/baidu/nettools/version.Commit={{.Commit}} -X github.com/baidu/nettools/version.Date={{.Date}}
+
 archives:
   - id: default
     ids:
@@ -94,6 +108,7 @@ archives:
       - lidar
       - mping
       - mping6
+      - kuiniu
     formats: ['tar.gz']
     name_template: >-
       {{ .ProjectName }}_

@@ -9,6 +9,7 @@ BINARY6  := bitflip6
 BINARYBA := baize
 BINARYMP  := mping
 BINARYMP6 := mping6
+BINARYKN  := kuiniu
 COVERAGE_FILE := coverage.out
 COVERAGE_HTML := coverage.html
 
@@ -31,7 +32,7 @@ prepare:
 	go mod download
 
 # make compile
-compile: build build6 build-baize build-mping build-mping6
+compile: build build6 build-baize build-mping build-mping6 build-kuiniu
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(HOMEDIR)/$(BINARY) ./cmd/bitflip/
 
@@ -46,6 +47,10 @@ build-mping:
 
 build-mping6:
 	go build -ldflags "$(LDFLAGS)" -o $(HOMEDIR)/$(BINARYMP6) ./cmd/mping6/
+
+build-kuiniu:
+	mkdir -p $(OUTDIR)
+	go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARYKN) ./cmd/kuiniu/
 
 ## test: Run all tests
 test: prepare
@@ -118,6 +123,7 @@ package:
 	mv $(BINARYBA) $(OUTDIR)/
 	mv $(BINARYMP) $(OUTDIR)/
 	mv $(BINARYMP6) $(OUTDIR)/
+	mv $(BINARYKN) $(OUTDIR)/
 
 # make lint
 lint:
@@ -194,5 +200,5 @@ help:
 
 .PHONY: all prepare compile test test-short test-race test-coverage treemap test-verbose benchmark \
         test-codec test-stat test-client test-server test-config \
-        lint fmt fmt-check vet check clean tidy install-tools ci help build build6 build-baize build-mping build-mping6 package \
+        lint fmt fmt-check vet check clean tidy install-tools ci help build build6 build-baize build-mping build-mping6 build-kuiniu package \
         snapshot deploy
