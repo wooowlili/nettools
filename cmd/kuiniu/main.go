@@ -190,44 +190,37 @@ func main() {
 	proc := stat.NewProcessor(cfg.Span, cfg.Delay)
 	go proc.Run(ctx)
 
-	if cfg.Role == config.RoleClient || cfg.Role == config.RoleBoth {
-		runClient(ctx, cancel, &cfg, proc, logger)
-	}
-	if cfg.Role == config.RoleServer || cfg.Role == config.RoleBoth {
-		runServer(ctx, cancel, &cfg, proc, logger)
-	}
-}
+	runClient := cfg.Role == config.RoleClient || cfg.Role == config.RoleBoth
+	runServer := cfg.Role == config.RoleServer || cfg.Role == config.RoleBoth
 
-func runClient(ctx context.Context, cancel context.CancelFunc, cfg *config.Config, proc *stat.Processor, logger *log.Logger) {
-	limiter := ratelimit.New(int(cfg.RateInSpan), ratelimit.Per(cfg.Span))
-	c, err := client.NewClient(cfg, limiter, proc, nil, logger)
-	if err != nil {
-		log.Printf("[ERRO] client init: %v", err)
-		cancel()
-		return
-	}
-
-	go func() {
-		if err := c.Run(ctx); err != nil {
-			log.Printf("[ERRO] client: %v", err)
+	if runClient {
+		limiter := ratelimit.New(int(cfg.RateInSpan), ratelimit.Per(cfg.Span))
+		c, err := client.NewClient(&cfg, limiter, proc, nil, logger)
+		if err != nil {
+			log.Printf("[ERRO] client init: %v", err)
+			cancel()
+			return
 		}
-	}()
+		go func() {
+			if err := c.Run(ctx); err != nil {
+				log.Printf("[ERRO] client: %v", err)
+				cancel()
+			}
+		}()
+		log.Printf("[INFO] kuiniu client started, %d GPU pairs", cfg.GPUPairCount())
+	}
 
-	log.Printf("[INFO] kuiniu client started, %d GPU pairs", cfg.GPUPairCount())
-	<-ctx.Done()
-	time.Sleep(1 * time.Second)
-}
+	if runServer {
+		s := server.New(&cfg, proc, nil, logger)
+		go func() {
+			if err := s.Run(ctx); err != nil {
+				log.Printf("[ERRO] server: %v", err)
+				cancel()
+			}
+		}()
+		log.Printf("[INFO] kuiniu server started, %d GPU IPs", cfg.GPUPairCount())
+	}
 
-func runServer(ctx context.Context, cancel context.CancelFunc, cfg *config.Config, proc *stat.Processor, logger *log.Logger) {
-	s := server.New(cfg, proc, nil, logger)
-
-	go func() {
-		if err := s.Run(ctx); err != nil {
-			log.Printf("[ERRO] server: %v", err)
-		}
-	}()
-
-	log.Printf("[INFO] kuiniu server started, %d GPU IPs", cfg.GPUPairCount())
 	<-ctx.Done()
 	time.Sleep(1 * time.Second)
 }
