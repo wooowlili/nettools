@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,14 +21,54 @@ import (
 	"github.com/baidu/nettools/kuiniu/server"
 	"github.com/baidu/nettools/stat"
 	"github.com/baidu/nettools/version"
+	"github.com/spf13/pflag"
 	"go.uber.org/ratelimit"
 )
 
-var configFile = flag.String("c", "kuiniu.json", "path to config file")
-
 func main() {
-	showVersion := flag.Bool("version", false, "Print version and exit")
-	flag.Parse()
+	var (
+		role           string
+		localGPUAddrs  string
+		localCPUAddr   string
+		remoteGPUAddrs string
+		remoteCPUAddr  string
+		tos            int
+		count          int
+		sendDuration   time.Duration
+		delay          time.Duration
+		clientPorts    string
+		serverPorts    string
+		rate           int64
+		msgLen         int
+		verbose        bool
+		configFile     string
+		pprofAddr      string
+		logDir         string
+		logMaxAge      int
+	)
+
+	pflag.StringVarP(&role, "role", "r", "", "Role: client or server")
+	pflag.StringVarP(&localGPUAddrs, "local-gpu", "", "", "Comma-separated local GPU IP addresses")
+	pflag.StringVar(&localCPUAddr, "local-cpu", "", "Local CPU NIC IP address")
+	pflag.StringVarP(&remoteGPUAddrs, "remote-gpu", "", "", "Comma-separated remote GPU IP addresses")
+	pflag.StringVar(&remoteCPUAddr, "remote-cpu", "", "Remote CPU NIC IP address")
+	pflag.IntVarP(&tos, "tos", "t", 64, "IP TOS/DSCP value")
+	pflag.IntVarP(&count, "count", "n", 0, "Max packets to send per GPU pair (0 = unlimited)")
+	pflag.DurationVarP(&sendDuration, "duration", "d", 0, "Max send duration (0 = unlimited)")
+	pflag.DurationVar(&delay, "delay", 3*time.Second, "Delay before processing stats")
+	pflag.StringVarP(&clientPorts, "client-ports", "", "43600,43699", "Client port range [min,max]")
+	pflag.StringVarP(&serverPorts, "server-ports", "", "43600,43609", "Server port range [min,max]")
+	pflag.Int64VarP(&rate, "rate", "", 5000, "Packets per span across all GPU pairs")
+	pflag.IntVarP(&msgLen, "msglen", "", 1024, "Message payload size (excluding 44-byte header)")
+	pflag.BoolVar(&verbose, "verbose", false, "Print per-port loss details on packet loss")
+	pflag.StringVarP(&configFile, "config", "c", "", "Path to JSON config file (command-line flags override config values)")
+	pflag.StringVar(&pprofAddr, "pprof", "", "Pprof listen address (e.g. :6060)")
+	pflag.StringVar(&logDir, "log-dir", "", "Log directory for rotated log files")
+	pflag.IntVar(&logMaxAge, "log-max-age", 7, "Max days to keep log files")
+
+	showVersion := pflag.BoolP("version", "V", false, "Print version and exit")
+	pflag.Parse()
+
 	if *showVersion {
 		fmt.Println(version.String())
 		return
@@ -47,17 +86,74 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	data, err := os.ReadFile(*configFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "read config %s: %v\n", *configFile, err)
-		os.Exit(1)
+	// Start with config file (if provided), then overlay CLI flags.
+	var cfg config.Config
+
+	if configFile != "" {
+		data, err := os.ReadFile(configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "read config %s: %v\n", configFile, err)
+			os.Exit(1)
+		}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "parse config: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	var cfg config.Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "parse config: %v\n", err)
-		os.Exit(1)
+	// CLI flags override config file values. Only override when the flag
+	// was explicitly set by the user (non-zero for scalars, non-empty for strings).
+	if role != "" {
+		cfg.Role = config.Role(role)
 	}
+	if localGPUAddrs != "" {
+		cfg.LocalGPUAddrs = splitNonEmpty(localGPUAddrs)
+	}
+	if localCPUAddr != "" {
+		cfg.LocalCPUAddr = localCPUAddr
+	}
+	if remoteGPUAddrs != "" {
+		cfg.RemoteGPUAddrs = splitNonEmpty(remoteGPUAddrs)
+	}
+	if remoteCPUAddr != "" {
+		cfg.RemoteCPUAddr = remoteCPUAddr
+	}
+	if pprofAddr != "" {
+		cfg.PprofAddr = pprofAddr
+	}
+	if logDir != "" {
+		cfg.LogDir = logDir
+	}
+	if logMaxAge != 7 {
+		cfg.LogMaxAgeDays = logMaxAge
+	}
+
+	// Parse port ranges from CLI
+	if clientPorts != "43600,43699" || cfg.ClientPortRangeStr == "" {
+		cfg.ClientPortRangeStr = clientPorts
+	}
+	if serverPorts != "43600,43609" || cfg.ServerPortRangeStr == "" {
+		cfg.ServerPortRangeStr = serverPorts
+	}
+
+	// Apply CLI overrides for numeric fields (only when explicitly different from defaults)
+	if tos != 64 {
+		cfg.TOS = tos
+	}
+	if count != 0 {
+		cfg.Count = count
+	}
+	if sendDuration != 0 {
+		cfg.SendDuration = sendDuration
+		cfg.SendDurStr = sendDuration.String()
+	}
+	if rate != 5000 {
+		cfg.RateInSpan = rate
+	}
+	if msgLen != 1024 {
+		cfg.MsgLen = msgLen
+	}
+	cfg.Verbose = cfg.Verbose || verbose
 
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
@@ -133,6 +229,20 @@ func runServer(ctx context.Context, cancel context.CancelFunc, cfg *config.Confi
 	log.Printf("[INFO] kuiniu server started, %d GPU IPs", cfg.GPUPairCount())
 	<-ctx.Done()
 	time.Sleep(1 * time.Second)
+}
+
+func splitNonEmpty(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var result []string
+	for part := range strings.SplitSeq(s, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 type rotateWriter struct {
