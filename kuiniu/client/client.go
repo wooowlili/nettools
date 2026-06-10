@@ -265,7 +265,7 @@ func (c *Client) handlePacket(rawPkt []byte) {
 
 	var p *gpuPeer
 	for _, peer := range c.peers {
-		if peer.remoteGPUIP.Equal(r.SrcIP) {
+		if peer.remoteGPUIP.Equal(r.DstIP) {
 			p = peer
 			break
 		}
