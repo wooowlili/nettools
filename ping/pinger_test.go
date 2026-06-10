@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -400,6 +401,9 @@ func TestSetSocketTimeouts_DarwinStub(t *testing.T) {
 }
 
 func TestConfigureTimestamps_DarwinStubAlwaysFalse(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("darwin/BSD stub test; configureTimestamps on linux requires a real socket fd")
+	}
 	logger := log.New(io.Discard, "", 0)
 	var tx, rx bool
 	tx, rx = true, true // start true to verify the stub forces them false
@@ -412,12 +416,18 @@ func TestConfigureTimestamps_DarwinStubAlwaysFalse(t *testing.T) {
 }
 
 func TestGetTimestampFromOOB_DarwinStubReturnsErr(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("darwin/BSD stub test")
+	}
 	if _, err := getTimestampFromOOB(nil, 0); err == nil {
 		t.Error("expected ErrStampNotFund on darwin stub")
 	}
 }
 
 func TestGetTxTimestamp_DarwinStubReturnsErr(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("darwin/BSD stub test; linux getTxTimestamp uses MSG_ERRQUEUE on a real fd")
+	}
 	if _, err := getTxTimestamp(0); err == nil {
 		t.Error("expected ErrStampNotFund on darwin stub")
 	}

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -498,6 +499,9 @@ func TestSetSocketTimeouts_DarwinStub(t *testing.T) {
 }
 
 func TestConfigureTimestamps_DarwinStubAlwaysFalse(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("darwin/BSD stub test; configureTimestamps on linux requires a real socket fd")
+	}
 	logger := log.New(io.Discard, "", 0)
 	tx, rx := true, true
 	if err := configureTimestamps(0, "lo0", false, logger, &tx, &rx); err != nil {
@@ -509,12 +513,18 @@ func TestConfigureTimestamps_DarwinStubAlwaysFalse(t *testing.T) {
 }
 
 func TestGetTimestampFromOOB_DarwinStubReturnsErr(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("darwin/BSD stub test")
+	}
 	if _, err := getTimestampFromOOB(nil, 0); err == nil {
 		t.Error("expected ErrStampNotFund on darwin stub")
 	}
 }
 
 func TestGetTxTimestamp_DarwinStubReturnsErr(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("darwin/BSD stub test; linux getTxTimestamp uses MSG_ERRQUEUE on a real fd")
+	}
 	if _, err := getTxTimestamp(0); err == nil {
 		t.Error("expected ErrStampNotFund on darwin stub")
 	}
@@ -691,6 +701,34 @@ func TestSetSocketTimeouts_BadFD(t *testing.T) {
 	if err := setSocketTimeouts(-1, time.Second); err == nil {
 		t.Error("expected error from setSocketTimeouts(-1)")
 	}
+}
+
+// TestProcessPacket_EchoReplyWithUnknownICMPID feeds an Echo Reply whose
+// ICMP id doesn't match any registered target — exercises the t==nil
+// branch of handleEchoReply.
+func TestProcessPacket_EchoReplyWithUnknownICMPID(t *testing.T) {
+	p := newTestPinger(t, []string{"2001:db8::1"})
+	tgt := p.targets[0]
+
+	ipv6 := layers.NewIPv6()
+	_ = ipv6.Set("src", tgt.addr)
+	_ = ipv6.Set("dst", p.conf.LocalAddr)
+	_ = ipv6.Set("hlim", uint8(64))
+
+	icmpHdr := layers.NewICMPv6()
+	_ = icmpHdr.Set("type", uint8(icmpv6EchoReply))
+	_ = icmpHdr.Set("code", uint8(0))
+
+	// Use an icmpID that no registered target owns.
+	echo := layers.NewICMPv6Echo(tgt.icmpID+999, 1)
+	_ = echo.Set("data", make([]byte, 64))
+
+	pkt := packet.NewFrom(ipv6, icmpHdr, echo)
+	raw, err := pkt.BuildFrom(1)
+	if err != nil {
+		t.Fatalf("BuildFrom: %v", err)
+	}
+	p.processPacket(raw, fromSockaddrFor(p, 0), time.Now().UnixNano())
 }
 
 // plainErr is a non-net.Error error used to exercise the final "return false"
