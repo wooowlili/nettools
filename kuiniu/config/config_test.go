@@ -11,6 +11,31 @@ func TestValidateRole(t *testing.T) {
 	}
 }
 
+func TestValidateBoth(t *testing.T) {
+	cfg := &Config{
+		Role:           RoleBoth,
+		LocalGPUAddrs:  []string{"10.0.0.1"},
+		RemoteGPUAddrs: []string{"10.0.1.1"},
+		LocalCPUAddr:   "192.168.1.1",
+		RemoteCPUAddr:  "192.168.1.2",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected error for role both: %v", err)
+	}
+}
+
+func TestValidateBothMissingRemoteCPUAddr(t *testing.T) {
+	cfg := &Config{
+		Role:           RoleBoth,
+		LocalGPUAddrs:  []string{"10.0.0.1"},
+		RemoteGPUAddrs: []string{"10.0.1.1"},
+		LocalCPUAddr:   "192.168.1.1",
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for missing remote_cpu_addr with role both")
+	}
+}
+
 func TestValidateClientMissingGPUAddrs(t *testing.T) {
 	cfg := &Config{
 		Role:           RoleClient,

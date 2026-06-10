@@ -47,7 +47,7 @@ func main() {
 		logMaxAge      int
 	)
 
-	pflag.StringVarP(&role, "role", "r", "", "Role: client or server")
+	pflag.StringVarP(&role, "role", "r", "", "Role: client, server, or both")
 	pflag.StringVarP(&localGPUAddrs, "local-gpu", "", "", "Comma-separated local GPU IP addresses")
 	pflag.StringVar(&localCPUAddr, "local-cpu", "", "Local CPU NIC IP address")
 	pflag.StringVarP(&remoteGPUAddrs, "remote-gpu", "", "", "Comma-separated remote GPU IP addresses")
@@ -190,9 +190,10 @@ func main() {
 	proc := stat.NewProcessor(cfg.Span, cfg.Delay)
 	go proc.Run(ctx)
 
-	if cfg.Role == config.RoleClient {
+	if cfg.Role == config.RoleClient || cfg.Role == config.RoleBoth {
 		runClient(ctx, cancel, &cfg, proc, logger)
-	} else {
+	}
+	if cfg.Role == config.RoleServer || cfg.Role == config.RoleBoth {
 		runServer(ctx, cancel, &cfg, proc, logger)
 	}
 }

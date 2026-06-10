@@ -16,6 +16,7 @@ type Role string
 const (
 	RoleServer Role = "server"
 	RoleClient Role = "client"
+	RoleBoth   Role = "both"
 )
 
 type PortRange = stat.PortRange
@@ -95,16 +96,19 @@ func resolveLocalIP() (string, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.Role != RoleServer && c.Role != RoleClient {
-		return fmt.Errorf("invalid role %q: must be %q or %q", c.Role, RoleServer, RoleClient)
+	if c.Role != RoleServer && c.Role != RoleClient && c.Role != RoleBoth {
+		return fmt.Errorf("invalid role %q: must be %q, %q or %q", c.Role, RoleServer, RoleClient, RoleBoth)
 	}
 
-	if c.Role == RoleClient {
+	needsClient := c.Role == RoleClient || c.Role == RoleBoth
+	needsServer := c.Role == RoleServer || c.Role == RoleBoth
+
+	if needsClient || needsServer {
 		if len(c.LocalGPUAddrs) == 0 {
-			return fmt.Errorf("local_gpu_addrs is required for client role")
+			return fmt.Errorf("local_gpu_addrs is required")
 		}
 		if len(c.RemoteGPUAddrs) == 0 {
-			return fmt.Errorf("remote_gpu_addrs is required for client role")
+			return fmt.Errorf("remote_gpu_addrs is required")
 		}
 		if len(c.LocalGPUAddrs) != len(c.RemoteGPUAddrs) {
 			return fmt.Errorf("local_gpu_addrs (%d) and remote_gpu_addrs (%d) must have the same count",
@@ -117,28 +121,11 @@ func (c *Config) Validate() error {
 			}
 			c.LocalCPUAddr = ip
 		}
+	}
+
+	if needsClient {
 		if c.RemoteCPUAddr == "" {
 			return fmt.Errorf("remote_cpu_addr is required for client role")
-		}
-	}
-
-	if c.Role == RoleServer {
-		if len(c.LocalGPUAddrs) == 0 {
-			return fmt.Errorf("local_gpu_addrs is required for server role")
-		}
-		if len(c.RemoteGPUAddrs) == 0 {
-			return fmt.Errorf("remote_gpu_addrs is required for server role (client GPU IPs for allowlist)")
-		}
-		if len(c.LocalGPUAddrs) != len(c.RemoteGPUAddrs) {
-			return fmt.Errorf("local_gpu_addrs (%d) and remote_gpu_addrs (%d) must have the same count",
-				len(c.LocalGPUAddrs), len(c.RemoteGPUAddrs))
-		}
-		if c.LocalCPUAddr == "" {
-			ip, err := resolveLocalIP()
-			if err != nil {
-				return fmt.Errorf("local_cpu_addr not provided and failed to resolve local IP: %w", err)
-			}
-			c.LocalCPUAddr = ip
 		}
 	}
 
