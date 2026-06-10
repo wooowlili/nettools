@@ -1813,7 +1813,7 @@
                     <div class="stat-label">内部部署节点</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">4</div>
+                    <div class="stat-value">5</div>
                     <div class="stat-label">已开源工具</div>
                 </div>
                 <div class="stat-item">
@@ -1845,6 +1845,7 @@
                 <span>工具集：</span>
                 <a href="baize.html">baize（白泽）</a>
                 <a href="bitflip.html">bitflip / bitflip6</a>
+                <a href="kuiniu.html">kuiniu（夔牛）</a>
                 <a href="lidar.html">lidar（激光雷达）</a>
                 <a href="mping.html">mping / mping6</a>
             </div>
@@ -1981,6 +1982,69 @@
                     一个二进制文件。配合 Puppet/Ansible
                     批量下发，几十台机器分分钟到位。日志按天轮转，pprof
                     内置，线上排查不需要重新编译。
+                </div>
+            </div>
+
+            <!-- kuiniu -->
+            <div class="section" id="kuiniu">
+                <div class="section-header">
+                    <div class="section-dot" style="background: #8B6F8A;"></div>
+                    <h2>kuiniu（夔牛）— AI 训练集群 GPU NIC 互联探测</h2>
+                    <span class="badge badge-new">最新发布</span>
+                    <a href="kuiniu.html" class="guide-link">使用指南 &rarr;</a>
+                </div>
+
+                <p>
+                    kuiniu
+                    是面向 AI 训练集群 GPU 网卡（RoCEv2/UDP）的双向互联探测工具。以「GPU 对」为最小单元同时发起对称探测，单进程内同时承担 client + server 两种角色，支持
+                    role=both 一行配置部署到所有训练节点。
+                </p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🎮</div>
+                        <h4>GPU NIC 对称探测</h4>
+                        <p>
+                            按 GPU 网卡 IP 绑定源地址发包，覆盖训练节点真实使用的 RoCEv2 路径。两端探测对称展开，丢包归因精确到方向。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔗</div>
+                        <h4>GPU 对数组模型</h4>
+                        <p>
+                            local_gpu_addrs[i] ↔ remote_gpu_addrs[i] 平行数组配置，N 张 GPU 卡一次性展开 N 个对称探测对，单机多卡场景天然适配。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔄</div>
+                        <h4>role=both 单配置部署</h4>
+                        <p>
+                            一份 JSON、一行 role=both 同时启动 client + server，自动维护 localGPUSet 防止自回声。所有节点配置同构，运维成本极低。
+                        </p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🛡️</div>
+                        <h4>4-Salt bitflip 检测</h4>
+                        <p>
+                            复用 baize 同款 4 种 Salt 填充模式，专门覆盖 RoCE 链路上 TCP/UDP 校验和发现不了的互补比特翻转，定位到 GPU 网卡或交换机端口。
+                        </p>
+                    </div>
+                </div>
+
+                <h3>典型场景</h3>
+                <div class="scenario-tags">
+                    <span class="scenario-tag">AI 训练集群 GPU 互联监控</span>
+                    <span class="scenario-tag">RoCEv2 链路丢包定位</span>
+                    <span class="scenario-tag">GPU 网卡 bitflip 排查</span>
+                    <span class="scenario-tag">训练前预检</span>
+                    <span class="scenario-tag">故障复盘</span>
+                    <span class="scenario-tag">大模型训练保障</span>
+                </div>
+
+                <div class="tip">
+                    <strong>部署方式：</strong>每台训练节点一份 JSON
+                    配置 + 一个二进制，role=both 同时承担 client/server。日志按天轮转（与 baize 共用
+                    util.RotateWriter），同时输出到终端和文件，pprof 内置，故障现场排查不需要二次部署。
                 </div>
             </div>
 
@@ -2147,6 +2211,7 @@ cd nettools && make build</span>
                         <th></th>
                         <th>bitflip / bitflip6</th>
                         <th>baize</th>
+                        <th>kuiniu</th>
                         <th>lidar</th>
                         <th>mping / mping6</th>
                     </tr>
@@ -2154,6 +2219,7 @@ cd nettools && make build</span>
                         <td>探测协议</td>
                         <td>UDP</td>
                         <td>UDP</td>
+                        <td>UDP（GPU NIC / RoCEv2）</td>
                         <td>TCP SYN</td>
                         <td>ICMP Echo</td>
                     </tr>
@@ -2161,6 +2227,7 @@ cd nettools && make build</span>
                         <td>需要服务端</td>
                         <td>需要</td>
                         <td>需要</td>
+                        <td>需要（role=both 单进程双角色）</td>
                         <td>不需要</td>
                         <td>不需要</td>
                     </tr>
@@ -2168,6 +2235,7 @@ cd nettools && make build</span>
                         <td>探测内容</td>
                         <td>延迟 + 丢包 + bitflip</td>
                         <td>延迟 + 丢包 + bitflip</td>
+                        <td>延迟 + 丢包 + bitflip（GPU 间）</td>
                         <td>延迟 + 可达性（SYN-ACK/RST/Timeout）</td>
                         <td>延迟 + 丢包 + bitflip</td>
                     </tr>
@@ -2175,6 +2243,7 @@ cd nettools && make build</span>
                         <td>配置方式</td>
                         <td>命令行参数</td>
                         <td>JSON 配置文件</td>
+                        <td>JSON 配置文件 + 命令行覆盖</td>
                         <td>命令行参数</td>
                         <td>命令行参数</td>
                     </tr>
@@ -2182,6 +2251,7 @@ cd nettools && make build</span>
                         <td>多目标</td>
                         <td>多 IP</td>
                         <td>多 IP</td>
+                        <td>GPU 对数组（local↔remote 平行数组）</td>
                         <td>多 IP</td>
                         <td>CIDR + DNS + 多 IP</td>
                     </tr>
@@ -2189,13 +2259,14 @@ cd nettools && make build</span>
                         <td>适用场景</td>
                         <td>临时排查、快速诊断</td>
                         <td>长期部署、持续监控</td>
+                        <td>AI 训练集群 GPU 互联监控</td>
                         <td>快速可达性探测</td>
                         <td>批量 ICMP 巡检</td>
                     </tr>
                 </table>
 
                 <div class="tip">
-                    <strong>简单来说：</strong>UDP 质量监控用 bitflip/baize，TCP 可达性探测用 lidar，ICMP 批量巡检用 mping。bitflip 适合临时排查，baize 适合长期部署，lidar 适合无需服务端的 TCP 探测，mping 适合批量 ICMP 延迟和丢包检测。
+                    <strong>简单来说：</strong>UDP 质量监控用 bitflip/baize，TCP 可达性探测用 lidar，ICMP 批量巡检用 mping。bitflip 适合临时排查，baize 适合长期部署，lidar 适合无需服务端的 TCP 探测，mping 适合批量 ICMP 延迟和丢包检测。kuiniu 专门面向 AI 训练集群 GPU NIC 互联探测，按 GPU 对组织、role=both 同构部署。
                 </div>
             </div>
 

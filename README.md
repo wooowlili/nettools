@@ -11,6 +11,7 @@ A suite of network diagnostic tools developed by Baidu's physical network black-
 - **bitflip**: Detects packet loss and bit-flip errors in large-scale physical networks.
 - **bitflip6**: IPv6 variant of bitflip for IPv6 network diagnostics.
 - **baize**: Configuration-driven continuous network quality monitoring tool for long-term deployment.
+- **kuiniu**: GPU NIC interconnect probing tool for AI training clusters — symmetric RoCEv2/UDP probing across GPU pairs, with `role=both` single-process dual-role deployment.
 - **lidar**: TCP SYN probing tool for network reachability detection — no server-side deployment required.
 - **mping**: Multi-target ICMP Echo ping tool with CIDR expansion, DNS resolution, hardware timestamping, and packet corruption detection.
 - **mping6**: IPv6 variant of mping for ICMPv6 Echo probing with packet corruption detection.
@@ -314,6 +315,89 @@ sudo ./baize -c /etc/baize/baize.json
 | `verbose` | bool | false | Print per-port loss details |
 
 See [baize usage guide](docs/baize-usage-guide.html) for more details.
+
+## kuiniu
+
+A GPU NIC interconnect probing tool for AI training clusters. Probes RoCEv2/UDP paths between GPU NICs across nodes, organized by **GPU pairs** (`local_gpu_addrs[i] ↔ remote_gpu_addrs[i]`). A single process can run client and server simultaneously via `role=both`, so every training node ships an identical config.
+
+**Key features:**
+- **GPU NIC binding:** Each probe is sourced from a specific GPU NIC IP — covers the real RoCEv2 paths used by training traffic, attributing loss precisely to direction.
+- **GPU pair model:** Parallel arrays `local_gpu_addrs[i]` ↔ `remote_gpu_addrs[i]` expand to N symmetric probe pairs in one shot, matching multi-GPU-per-node deployments naturally.
+- **role=both single-process dual-role:** One JSON config + `role=both` runs client + server in the same process. The server keeps a `localGPUSet` to drop self-echoed packets, so all nodes can ship the exact same config.
+- **4-Salt bit-flip detection:** Reuses baize's 4-pattern salt scheme to catch the complementary bit flips that TCP/UDP checksums miss on RoCE links.
+- **Shared logging utility:** Daily-rotated logs via `util.RotateWriter` (shared with baize), output to both terminal and file.
+
+### Quick Start
+
+**Build:**
+```bash
+go build -o kuiniu ./cmd/kuiniu/
+```
+
+**Create a config file** (e.g., `kuiniu.json`):
+```json
+{
+  "pprof_addr": ":6060",
+  "log_dir": "/var/log/kuiniu",
+  "log_max_age_days": 7,
+  "role": "both",
+  "local_gpu_addrs": [
+    "33.0.1.25", "33.0.1.26", "33.0.1.153", "33.0.1.154"
+  ],
+  "remote_gpu_addrs": [
+    "33.0.2.27", "33.0.2.28", "33.0.2.155", "33.0.2.156"
+  ],
+  "tos": 64,
+  "client_port_range": "43600,43699",
+  "server_port_range": "44600,44609",
+  "rate_in_span": 5000,
+  "span": "1s",
+  "delay": "3s",
+  "msg_len": 1024
+}
+```
+
+**Run:**
+```bash
+# Use a JSON config (CLI flags override config values)
+sudo ./kuiniu -c kuiniu.json
+
+# Pure CLI mode (single GPU pair)
+sudo ./kuiniu --role both \
+  --local-gpu  33.0.1.25 \
+  --remote-gpu 33.0.2.27
+```
+
+### Command-line Flags
+
+| Short | Long | Default | Description |
+|-------|------|---------|-------------|
+| `-r` | `--role` | "" | Role: `client`, `server`, or `both` |
+| | `--local-gpu` | "" | Comma-separated local GPU IP addresses |
+| | `--remote-gpu` | "" | Comma-separated remote GPU IP addresses |
+| `-t` | `--tos` | 64 | IP TOS/DSCP value |
+| `-n` | `--count` | 0 | Max packets per GPU pair (0 = unlimited) |
+| `-d` | `--duration` | 0 | Max send duration (0 = unlimited) |
+| | `--client-ports` | "43600,43699" | Client port range [min,max] |
+| | `--server-ports` | "43600,43609" | Server port range [min,max] |
+| | `--rate` | 5000 | Packets per span across all GPU pairs |
+| | `--msglen` | 1024 | Payload size (excluding 44-byte header) |
+| | `--delay` | 3s | Delay before processing stats |
+| | `--verbose` | false | Print per-port loss details |
+| `-c` | `--config` | "" | JSON config file path (CLI flags override config values) |
+| | `--pprof` | "" | pprof listen address (e.g. `:6060`) |
+| | `--log-dir` | "" | Log directory for rotated log files |
+| | `--log-max-age` | 7 | Max days to keep log files |
+
+### Use Cases
+
+- **AI training cluster GPU interconnect monitoring:** Continuous probing across GPU NICs in large training clusters, exposing RoCE loss before it stalls a training job.
+- **RoCEv2 link loss localization:** Symmetric probes per GPU pair attribute loss to the forward or return path.
+- **GPU NIC bit-flip troubleshooting:** Catch complementary flips that TCP/UDP checksums miss.
+- **Pre-training health check:** Quick GPU-to-GPU connectivity validation before launching a training run.
+- **Post-incident review:** Replay symmetric probe data to localize faulty NICs/switches.
+
+See [kuiniu usage guide](docs/kuiniu.html) for more details.
 
 ## lidar
 

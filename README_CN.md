@@ -11,6 +11,7 @@
 - **bitflip**: 用于检测大规模物理网络中的丢包和比特翻转错误。
 - **bitflip6**: bitflip 的 IPv6 版本，用于 IPv6 网络诊断。
 - **baize**: 配置驱动的网络质量持续监控工具，适合长期部署场景。
+- **kuiniu**: AI 训练集群 GPU 网卡（RoCEv2/UDP）互联探测工具，按 GPU 对组织，支持 `role=both` 单进程双角色同构部署。
 - **lidar**: TCP SYN 网络可达性探测工具，无需在远端部署任何软件。
 - **mping**: 多目标 ICMP Echo 批量 ping 工具，支持 CIDR 展开、DNS 解析、硬件时间戳和改包检测。
 - **mping6**: mping 的 IPv6 版本，用于 ICMPv6 Echo 探测，支持改包检测。
@@ -307,6 +308,89 @@ sudo ./baize -c /etc/baize/baize.json
 | `verbose` | bool | false | 丢包时打印详细端口信息 |
 
 详见 [baize 使用指南](docs/baize-usage-guide.html)。
+
+## kuiniu
+
+面向 AI 训练集群 GPU 网卡（RoCEv2/UDP）的互联探测工具。按 **GPU 对** 组织（`local_gpu_addrs[i] ↔ remote_gpu_addrs[i]` 平行数组）双向对称探测，单进程通过 `role=both` 同时承担 client + server，所有训练节点配置同构。
+
+**核心特性：**
+- **GPU NIC 绑定：** 按 GPU 网卡 IP 绑定源地址发包，覆盖训练节点真实使用的 RoCEv2 路径，丢包归因精确到方向。
+- **GPU 对数组模型：** `local_gpu_addrs[i]` ↔ `remote_gpu_addrs[i]` 平行数组配置，N 张 GPU 卡一次性展开 N 个对称探测对，单机多卡场景天然适配。
+- **role=both 单配置部署：** 一份 JSON、一行 `role=both` 同时启动 client + server，server 端维护 `localGPUSet` 防止自回声，所有节点配置同构、运维成本极低。
+- **4-Salt bitflip 检测：** 复用 baize 同款 4 种 Salt 填充模式，专门覆盖 RoCE 链路上 TCP/UDP 校验和发现不了的互补比特翻转。
+- **共享日志组件：** 复用 `util.RotateWriter`（与 baize 共用）按日期轮转，同时输出到终端和文件。
+
+### 快速开始
+
+**编译：**
+```bash
+go build -o kuiniu ./cmd/kuiniu/
+```
+
+**创建配置文件**（如 `kuiniu.json`）：
+```json
+{
+  "pprof_addr": ":6060",
+  "log_dir": "/var/log/kuiniu",
+  "log_max_age_days": 7,
+  "role": "both",
+  "local_gpu_addrs": [
+    "33.0.1.25", "33.0.1.26", "33.0.1.153", "33.0.1.154"
+  ],
+  "remote_gpu_addrs": [
+    "33.0.2.27", "33.0.2.28", "33.0.2.155", "33.0.2.156"
+  ],
+  "tos": 64,
+  "client_port_range": "43600,43699",
+  "server_port_range": "44600,44609",
+  "rate_in_span": 5000,
+  "span": "1s",
+  "delay": "3s",
+  "msg_len": 1024
+}
+```
+
+**运行：**
+```bash
+# 使用 JSON 配置（命令行参数会覆盖配置项）
+sudo ./kuiniu -c kuiniu.json
+
+# 纯命令行模式（单 GPU 对）
+sudo ./kuiniu --role both \
+  --local-gpu  33.0.1.25 \
+  --remote-gpu 33.0.2.27
+```
+
+### 命令行参数
+
+| 短参数 | 长参数 | 默认值 | 说明 |
+|--------|--------|--------|------|
+| `-r` | `--role` | "" | 角色：`client` / `server` / `both` |
+| | `--local-gpu` | "" | 本机 GPU IP 列表（逗号分隔） |
+| | `--remote-gpu` | "" | 对端 GPU IP 列表（逗号分隔） |
+| `-t` | `--tos` | 64 | IP TOS/DSCP 值 |
+| `-n` | `--count` | 0 | 每对 GPU 最大发包数（0 = 无限制） |
+| `-d` | `--duration` | 0 | 最大发送时长（0 = 无限制） |
+| | `--client-ports` | "43600,43699" | 客户端端口范围 [min,max] |
+| | `--server-ports` | "43600,43609" | 服务端端口范围 [min,max] |
+| | `--rate` | 5000 | 所有 GPU 对总速率（每个 span） |
+| | `--msglen` | 1024 | 报文载荷大小（不含 44 字节头部） |
+| | `--delay` | 3s | 统计处理延迟 |
+| | `--verbose` | false | 丢包时打印详细端口信息 |
+| `-c` | `--config` | "" | JSON 配置文件路径（命令行参数会覆盖配置项） |
+| | `--pprof` | "" | pprof 监听地址（如 `:6060`） |
+| | `--log-dir` | "" | 日志目录（启用按日轮转） |
+| | `--log-max-age` | 7 | 日志保留天数 |
+
+### 使用场景
+
+- **AI 训练集群 GPU 互联监控：** 大规模训练集群 GPU 网卡间的持续探测，提前暴露 RoCE 链路问题，避免训练任务因丢包而 stall。
+- **RoCEv2 链路丢包定位：** 按 GPU 对的对称探测精确归因丢包方向（正向/回程）。
+- **GPU 网卡 bitflip 排查：** 捕捉 TCP/UDP 校验和漏检的互补比特翻转。
+- **训练前预检：** 启动训练前快速验证所有 GPU 对的连通性。
+- **故障复盘：** 基于双向对称数据精确定位故障 GPU 网卡或交换机端口。
+
+详见 [kuiniu 使用指南](docs/kuiniu.html)。
 
 ## lidar
 
