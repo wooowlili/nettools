@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,19 @@ func TestParseASNameTXT(t *testing.T) {
 func TestReverseV4(t *testing.T) {
 	if got := reverseV4(net.ParseIP("1.2.3.4")); got != "4.3.2.1" {
 		t.Errorf("got %q, want 4.3.2.1", got)
+	}
+}
+
+func TestReverseV6Nibbles(t *testing.T) {
+	// 2001:4860:4860::8888 — 32 nibbles reversed, low-then-high per byte.
+	got := reverseV6Nibbles(net.ParseIP("2001:4860:4860::8888"))
+	want := "8.8.8.8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.6.8.4.0.6.8.4.1.0.0.2"
+	if got != want {
+		t.Errorf("reverseV6Nibbles =\n  %q\nwant\n  %q", got, want)
+	}
+	// 32 nibbles => 31 separating dots.
+	if n := strings.Count(got, "."); n != 31 {
+		t.Errorf("expected 31 dots for full v6 nibble label, got %d", n)
 	}
 }
 
@@ -95,5 +109,31 @@ func TestIPInfoProviderLookup(t *testing.T) {
 	got := res["8.8.8.8"]
 	if got == nil || got.City != "Mountain View" || got.Country != "US" || got.ASN != 15169 {
 		t.Errorf("unexpected: %+v", got)
+	}
+}
+
+func TestIPInfoProviderLookupV6(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ip":"2001:4860:4860::8888","city":"Mountain View","region":"California","country":"US","org":"AS15169 Google LLC"}`))
+	}))
+	defer srv.Close()
+
+	p := NewIPInfoProvider("")
+	p.BaseURL = srv.URL
+
+	ip := net.ParseIP("2001:4860:4860::8888")
+	res, err := p.Lookup(context.Background(), []net.IP{ip})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := res[ip.String()]
+	if got == nil || got.Country != "US" || got.ASN != 15169 {
+		t.Errorf("unexpected v6 result: %+v", got)
+	}
+	if !strings.Contains(gotPath, "2001:4860:4860::8888") {
+		t.Errorf("v6 literal not in request path: %q", gotPath)
 	}
 }

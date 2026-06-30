@@ -10,16 +10,21 @@ import (
 )
 
 // cymruZoneOrigin is the Team Cymru zone returning origin ASN + prefix for an
-// IP, queried as "<reversed-octets>.origin.asn.cymru.com" TXT.
+// IPv4 address, queried as "<reversed-octets>.origin.asn.cymru.com" TXT.
 const cymruZoneOrigin = "origin.asn.cymru.com"
+
+// cymruZoneOrigin6 is the Team Cymru zone returning origin ASN + prefix for an
+// IPv6 address, queried as "<reversed-nibbles>.origin6.asn.cymru.com" TXT.
+const cymruZoneOrigin6 = "origin6.asn.cymru.com"
 
 // cymruZoneAS is the Team Cymru zone returning the AS name for an ASN, queried
 // as "AS<n>.asn.cymru.com" TXT.
 const cymruZoneAS = "asn.cymru.com"
 
 // CymruProvider resolves origin ASN, covering BGP prefix and AS name for IPv4
-// addresses using Team Cymru's IP-to-ASN DNS interface. It needs only outbound
-// DNS (no API key). See https://team-cymru.com/community-services/ip-asn-mapping/.
+// and IPv6 addresses using Team Cymru's IP-to-ASN DNS interface. It needs only
+// outbound DNS (no API key). IPv4 uses the origin zone, IPv6 the origin6 zone.
+// See https://team-cymru.com/community-services/ip-asn-mapping/.
 type CymruProvider struct {
 	// Resolver is the DNS resolver to use; nil means net.DefaultResolver.
 	Resolver *net.Resolver
@@ -54,32 +59,41 @@ func (p *CymruProvider) Lookup(ctx context.Context, ips []net.IP) (map[string]*I
 	asNameCache := newASNameCache()
 
 	for _, ip := range ips {
-		v4 := ip.To4()
-		if v4 == nil {
-			continue // IPv4-only for now
+		key := ip.String()
+		query := ip
+		if v4 := ip.To4(); v4 != nil {
+			query = v4
+		} else if ip.To16() == nil {
+			continue // not a usable IP
 		}
 		wg.Add(1)
-		go func(ip net.IP) {
+		go func(query net.IP, key string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			info := p.lookupOne(ctx, resolver, asNameCache, ip)
+			info := p.lookupOne(ctx, resolver, asNameCache, query)
 			if info == nil {
 				return
 			}
 			mu.Lock()
-			out[ip.String()] = info
+			out[key] = info
 			mu.Unlock()
-		}(v4)
+		}(query, key)
 	}
 	wg.Wait()
 	return out, nil
 }
 
-// lookupOne resolves a single IP's origin record and (cached) AS name.
+// lookupOne resolves a single IP's origin record and (cached) AS name. It uses
+// the IPv4 (origin) or IPv6 (origin6) Cymru zone depending on the address.
 func (p *CymruProvider) lookupOne(ctx context.Context, r *net.Resolver, names *asNameCache, ip net.IP) *IPInfo {
-	name := reverseV4(ip) + "." + cymruZoneOrigin
+	var name string
+	if v4 := ip.To4(); v4 != nil {
+		name = reverseV4(v4) + "." + cymruZoneOrigin
+	} else {
+		name = reverseV6Nibbles(ip) + "." + cymruZoneOrigin6
+	}
 	txts, err := r.LookupTXT(ctx, name)
 	if err != nil || len(txts) == 0 {
 		return nil
@@ -134,6 +148,24 @@ func lookupASName(ctx context.Context, r *net.Resolver, asn uint32) string {
 func reverseV4(ip net.IP) string {
 	v4 := ip.To4()
 	return fmt.Sprintf("%d.%d.%d.%d", v4[3], v4[2], v4[1], v4[0])
+}
+
+// reverseV6Nibbles returns the ip6.arpa-style reversed-nibble string for an
+// IPv6 address (without the trailing zone), e.g. 2001:4860:4860::8888 becomes
+// "8.8.8.8.0...0.6.8.4.0.6.8.4.1.0.0.2". Used as the label under
+// origin6.asn.cymru.com.
+func reverseV6Nibbles(ip net.IP) string {
+	v6 := ip.To16()
+	var b strings.Builder
+	for i := len(v6) - 1; i >= 0; i-- {
+		lo := v6[i] & 0x0F
+		hi := v6[i] >> 4
+		fmt.Fprintf(&b, "%x.%x", lo, hi)
+		if i > 0 {
+			b.WriteByte('.')
+		}
+	}
+	return b.String()
 }
 
 // parseOriginTXT parses a Team Cymru origin TXT record. Format:
