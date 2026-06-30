@@ -205,7 +205,7 @@ sudo ./traceroute 8.8.8.8 1.1.1.1 example.com</code></pre>
 
     <div class="section" id="enrich">
       <div class="section-title"><div class="section-dot plum"></div><h3>9. IP 信息增强（ASN / 归属地）</h3></div>
-      <p>可选地为每跳 IP 附加 <strong>ASN / AS 名 / BGP 前缀</strong>与<strong>地理归属地</strong>信息，类似 <a href="https://www.nxtrace.org/" target="_blank">NextTrace</a> 的可视化效果。数据来源做成<strong>可插拔的 Provider 接口</strong>（<code>traceroute/enrich</code> 包），默认两种实现，未来可替换为离线 MaxMind、bgp.tools、内部服务等。</p>
+      <p>可选地为每跳 IP 附加 <strong>ASN / AS 名 / BGP 前缀</strong>与<strong>地理归属地</strong>信息。数据来源做成<strong>可插拔的 Provider 接口</strong>（<code>traceroute/enrich</code> 包），默认两种实现，未来可替换为离线 MaxMind、bgp.tools、内部服务等。</p>
       <table>
         <thead><tr><th>开关</th><th>数据源</th><th>提供字段</th><th>依赖</th></tr></thead>
         <tbody>

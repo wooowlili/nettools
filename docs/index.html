@@ -1849,7 +1849,7 @@
                 <a href="kuiniu.html">kuiniu（夔牛）</a>
                 <a href="lidar.html">lidar（激光雷达）</a>
                 <a href="mping.html">mping / mping6</a>
-                <a href="traceroute.html">traceroute</a>
+                <a href="traceroute.html">traceroute / traceroute6</a>
             </div>
 
             <!-- lidar -->
@@ -2265,7 +2265,7 @@ cd nettools && make build</span>
             <div class="section" id="traceroute">
                 <div class="section-header">
                     <div class="section-dot" style="background: #C77DFF;"></div>
-                    <h2>traceroute — 逐跳路径探测（ICMP/UDP/TCP）</h2>
+                    <h2>traceroute / traceroute6 — 逐跳路径探测（ICMP/UDP/TCP）</h2>
                     <span class="badge badge-new">最新发布</span>
                     <a href="traceroute.html" class="guide-link">使用指南 &rarr;</a>
                 </div>
@@ -2273,6 +2273,7 @@ cd nettools && make build</span>
                 <p>
                     traceroute 是逐跳路径探测工具，支持 ICMP / UDP / TCP SYN 三种探针，
                     并发探测多个 TTL 和多个目标，输出每跳的 RTT 与丢包率，无需服务端部署。
+                    traceroute6 为对应的 IPv6 版本，使用 Hop Limit 与 ICMPv6 实现同样的逐跳探测。
                     所有报文的编解码均通过 goscapy 完成。
                 </p>
 
