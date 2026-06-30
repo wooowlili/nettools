@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/baidu/nettools/traceroute/enrich"
 )
 
 // Protocol selects the probe packet type.
@@ -93,6 +95,11 @@ type Config struct {
 
 	// ResolveDNS enables reverse-DNS (PTR) lookups for each hop IP.
 	ResolveDNS bool
+
+	// Providers enrich each hop IP with metadata (ASN/prefix/geo). Empty means
+	// no enrichment. Use enrich.CymruProvider for ASN/BGP and
+	// enrich.IPInfoProvider for geo. See package traceroute/enrich.
+	Providers []enrich.Provider
 }
 
 // DefaultConfig returns a Config with sensible defaults.

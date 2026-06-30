@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baidu/nettools/traceroute/enrich"
 	"github.com/smallnest/goscapy/pkg/layers"
 	"github.com/smallnest/goscapy/pkg/packet"
 )
@@ -62,8 +63,42 @@ func TestResultStringHeaderAndHops(t *testing.T) {
 	}
 }
 
-func TestResultSummary(t *testing.T) {
+func TestResultStringWithEnrichment(t *testing.T) {
 	r := &Result{
+		Dst:     "dns.google",
+		DstIP:   mustIP("8.8.8.8"),
+		Proto:   ProtoICMP,
+		MaxHops: 30,
+		Hops: []Hop{{
+			TTL:   1,
+			Addrs: []net.IP{mustIP("8.8.8.8")},
+			Hosts: []string{""},
+			Infos: []*enrich.IPInfo{{
+				IP: mustIP("8.8.8.8"), ASN: 15169, ASName: "GOOGLE",
+				Prefix: "8.8.8.0/24", Country: "US", City: "Mountain View",
+			}},
+			Probes: []ProbeResult{{FromIP: mustIP("8.8.8.8"), RTT: time.Millisecond}},
+		}},
+	}
+	out := r.String()
+	if !strings.Contains(out, "AS15169 GOOGLE 8.8.8.0/24") {
+		t.Errorf("missing ASN annotation: %q", out)
+	}
+	if !strings.Contains(out, "US Mountain View") {
+		t.Errorf("missing geo annotation: %q", out)
+	}
+}
+
+func TestFormatInfoEmpty(t *testing.T) {
+	if got := formatInfo(nil); got != "" {
+		t.Errorf("nil info should render empty, got %q", got)
+	}
+	if got := formatInfo(&enrich.IPInfo{}); got != "" {
+		t.Errorf("empty info should render empty, got %q", got)
+	}
+}
+
+func TestResultSummary(t *testing.T) {	r := &Result{
 		Hops: []Hop{{
 			TTL:   1,
 			Addrs: []net.IP{mustIP("10.0.0.1")},

@@ -1,11 +1,13 @@
 package traceroute
 
 import (
+	"context"
 	"net"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/baidu/nettools/traceroute/enrich"
 	"github.com/smallnest/goscapy/pkg/layers"
 	"github.com/smallnest/goscapy/pkg/packet"
 )
@@ -33,6 +35,9 @@ type Hop struct {
 	Addrs []net.IP
 	// Hosts holds the reverse-DNS name per Addrs entry (empty if unresolved).
 	Hosts []string
+	// Infos holds enrichment metadata (ASN/prefix/geo) per Addrs entry, nil if
+	// no enrichment provider supplied data for that address.
+	Infos []*enrich.IPInfo
 }
 
 // sortedRTTs returns the RTTs of probes that got a reply, ascending.
@@ -125,6 +130,7 @@ func (h *Hop) addAddr(ip net.IP) {
 	}
 	h.Addrs = append(h.Addrs, ip)
 	h.Hosts = append(h.Hosts, "")
+	h.Infos = append(h.Infos, nil)
 }
 
 // extractReply pulls the responding source IP and reachability flags out of a
@@ -213,6 +219,43 @@ func resolveHosts(results []*Result) {
 		for hi := range r.Hops {
 			for ai, addr := range r.Hops[hi].Addrs {
 				r.Hops[hi].Hosts[ai] = cache[addr.String()]
+			}
+		}
+	}
+}
+
+// enrichHops runs the enrichment providers over every distinct hop IP and
+// attaches the merged IPInfo to each Addrs entry. Provider failures are
+// tolerated (hops simply remain un-enriched).
+func enrichHops(ctx context.Context, providers []enrich.Provider, results []*Result) {
+	if len(providers) == 0 {
+		return
+	}
+
+	var ips []net.IP
+	seen := make(map[string]struct{})
+	for _, r := range results {
+		for hi := range r.Hops {
+			for _, addr := range r.Hops[hi].Addrs {
+				key := addr.String()
+				if _, dup := seen[key]; dup {
+					continue
+				}
+				seen[key] = struct{}{}
+				ips = append(ips, addr)
+			}
+		}
+	}
+	if len(ips) == 0 {
+		return
+	}
+
+	infos := enrich.Resolve(ctx, providers, ips)
+
+	for _, r := range results {
+		for hi := range r.Hops {
+			for ai, addr := range r.Hops[hi].Addrs {
+				r.Hops[hi].Infos[ai] = infos[addr.String()]
 			}
 		}
 	}

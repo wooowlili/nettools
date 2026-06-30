@@ -1,6 +1,7 @@
 package traceroute
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -73,6 +74,9 @@ func (t *Tracer) Run() ([]*Result, error) {
 
 	if t.conf.ResolveDNS {
 		resolveHosts(results)
+	}
+	if len(t.conf.Providers) > 0 {
+		enrichHops(context.Background(), t.conf.Providers, results)
 	}
 	return results, nil
 }

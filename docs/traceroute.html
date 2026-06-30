@@ -80,8 +80,9 @@
         <li><a href="#quickstart">6. 快速开始</a></li>
         <li><a href="#cli">7. 命令行参数</a></li>
         <li><a href="#output">8. 输出格式</a></li>
-        <li><a href="#scenarios">9. 使用场景</a></li>
-        <li><a href="#faq">10. FAQ</a></li>
+        <li><a href="#enrich">9. IP 信息增强（ASN / 归属地）</a></li>
+        <li><a href="#scenarios">10. 使用场景</a></li>
+        <li><a href="#faq">11. FAQ</a></li>
       </ul>
     </div>
 
@@ -180,6 +181,9 @@ sudo ./traceroute 8.8.8.8 1.1.1.1 example.com</code></pre>
           <tr><td></td><td><code>--dst-ip</code></td><td>target</td><td>覆盖写入 UDP/TCP 探针的目的 IPv4</td></tr>
           <tr><td><code>-w</code></td><td><code>--timeout</code></td><td>1s</td><td>单探针超时</td></tr>
           <tr><td></td><td><code>--no-dns</code></td><td>false</td><td>关闭反向 DNS 解析</td></tr>
+          <tr><td></td><td><code>--asn</code></td><td>false</td><td>经 Team Cymru DNS 为每跳标注起源 ASN / AS 名 / BGP 前缀（仅出站 DNS，无需 API key）</td></tr>
+          <tr><td></td><td><code>--geo</code></td><td>false</td><td>经 ipinfo.io 为每跳标注归属地/运营商（会把每跳 IP 发往第三方）</td></tr>
+          <tr><td></td><td><code>--geo-token</code></td><td>空</td><td>ipinfo.io API token（可选；为空则用匿名额度）</td></tr>
           <tr><td><code>-t</code></td><td><code>--tos</code></td><td>0</td><td>IP TOS/DSCP 值</td></tr>
           <tr><td></td><td><code>--parallel</code></td><td>16</td><td>并发在途探针上限</td></tr>
           <tr><td><code>-I</code></td><td><code>--interface</code></td><td>auto</td><td>出向网卡（自动探测）</td></tr>
@@ -199,8 +203,32 @@ sudo ./traceroute 8.8.8.8 1.1.1.1 example.com</code></pre>
 4   core1.isp.net (203.0.113.5)   12.345ms  12.201ms  12.503ms</code></pre>
     </div>
 
+    <div class="section" id="enrich">
+      <div class="section-title"><div class="section-dot plum"></div><h3>9. IP 信息增强（ASN / 归属地）</h3></div>
+      <p>可选地为每跳 IP 附加 <strong>ASN / AS 名 / BGP 前缀</strong>与<strong>地理归属地</strong>信息，类似 <a href="https://www.nxtrace.org/" target="_blank">NextTrace</a> 的可视化效果。数据来源做成<strong>可插拔的 Provider 接口</strong>（<code>traceroute/enrich</code> 包），默认两种实现，未来可替换为离线 MaxMind、bgp.tools、内部服务等。</p>
+      <table>
+        <thead><tr><th>开关</th><th>数据源</th><th>提供字段</th><th>依赖</th></tr></thead>
+        <tbody>
+          <tr><td><code>--asn</code></td><td>Team Cymru IP-to-ASN DNS</td><td>起源 ASN、AS 名、覆盖 BGP 前缀</td><td>仅出站 DNS，<strong>无需 API key</strong></td></tr>
+          <tr><td><code>--geo</code></td><td>ipinfo.io HTTP API</td><td>国家、省/州、城市、运营商</td><td>需访问外网，可选 <code>--geo-token</code></td></tr>
+        </tbody>
+      </table>
+      <p>两者均<strong>默认关闭</strong>，不开启时行为与原版完全一致。查询在所有探测完成后统一并发执行，并按 IP 去重（同一 ASN 的 AS 名也会缓存），不影响探测路径本身。</p>
+      <div class="note"><strong>隐私提醒：</strong><code>--geo</code> 会把每个命中跳的 IP 发送给第三方（ipinfo.io）。在敏感网络环境中请优先只用 <code>--asn</code>（纯 DNS），或接入离线数据源。</div>
+      <pre><code># 标注 ASN / BGP 前缀（纯 DNS）
+sudo ./traceroute --asn 8.8.8.8
+
+# 同时标注归属地（带 token 提升额度）
+sudo ./traceroute --asn --geo --geo-token &lt;your-token&gt; example.com</code></pre>
+      <p>输出会在每跳行尾追加方括号注释，格式 <code>[ASN AS名 前缀 | 国家 省 城市]</code>：</p>
+      <pre><code>traceroute to dns.google (8.8.8.8), 30 hops max, ICMP probes, 60 byte packets
+1   gateway (192.168.1.1)   1.234ms  1.301ms  1.122ms
+2   core1.isp.net (203.0.113.5) [AS4134 CHINANET-BACKBONE 203.0.113.0/24 | CN Beijing]   12.3ms  12.2ms
+3   dns.google (8.8.8.8) [AS15169 GOOGLE 8.8.8.0/24 | US Mountain View]   30.1ms  29.8ms</code></pre>
+    </div>
+
     <div class="section" id="scenarios">
-      <div class="section-title"><div class="section-dot terracotta"></div><h3>9. 使用场景</h3></div>
+      <div class="section-title"><div class="section-dot terracotta"></div><h3>10. 使用场景</h3></div>
       <ul class="body">
         <li><strong>逐跳故障定位：</strong>在大规模物理网络与 AI 训练集群中定位丢包/高时延发生在哪一跳。</li>
         <li><strong>ECMP 路径确认：</strong>识别同一 TTL 出现的多个回源，确认多路径转发。</li>
@@ -210,7 +238,7 @@ sudo ./traceroute 8.8.8.8 1.1.1.1 example.com</code></pre>
     </div>
 
     <div class="section" id="faq">
-      <div class="section-title"><div class="section-dot slate"></div><h3>10. FAQ</h3></div>
+      <div class="section-title"><div class="section-dot slate"></div><h3>11. FAQ</h3></div>
       <p><strong>为什么需要 root？</strong> 构造自定义 IP/ICMP/UDP/TCP 报文并设置 TTL 需要 raw socket，需 root 或 <code>CAP_NET_RAW</code>（<code>sudo setcap cap_net_raw+ep ./traceroute</code>）。</p>
       <p><strong>支持 IPv6 吗？</strong> 当前实现优先 IPv4；包结构预留了 IPv6（HopLimit）扩展，与 ping/ping6 的双栈风格保持一致。</p>
       <p><strong>某些跳一直是 <code>*</code>？</strong> 该跳路由器可能对 ICMP Time Exceeded 限速或不回送，属正常现象，不一定代表丢包。</p>

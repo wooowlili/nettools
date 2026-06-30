@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/baidu/nettools/traceroute/enrich"
 )
 
 // String renders the result in the classic traceroute layout (aeden/traceroute
@@ -46,10 +48,16 @@ func writeHopLine(b *strings.Builder, h *Hop) {
 		if host != "" {
 			label = strings.TrimSuffix(host, ".")
 		}
-		if ai > 0 {
-			b.WriteString("    ") // align continuation responders
+		if ai > 0 {			b.WriteString("    ") // align continuation responders
 		}
-		fmt.Fprintf(b, "%s (%s) ", label, addr.String())
+		fmt.Fprintf(b, "%s (%s)", label, addr.String())
+		if ai < len(h.Infos) {
+			if extra := formatInfo(h.Infos[ai]); extra != "" {
+				b.WriteString(" ")
+				b.WriteString(extra)
+			}
+		}
+		b.WriteString(" ")
 	}
 
 	// RTTs: one entry per probe, "*" for timeouts.
@@ -66,6 +74,48 @@ func writeHopLine(b *strings.Builder, h *Hop) {
 // formatRTT formats a duration as milliseconds with 3 decimals, e.g. "1.234ms".
 func formatRTT(d time.Duration) string {
 	return fmt.Sprintf("%.3fms", float64(d)/float64(time.Millisecond))
+}
+
+// formatInfo renders enrichment metadata inline, e.g.
+// "[AS15169 GOOGLE 8.8.8.0/24 | US Mountain View]". Empty pieces are omitted;
+// returns "" when no data is known.
+func formatInfo(info *enrich.IPInfo) string {
+	if info == nil {
+		return ""
+	}
+
+	var asn []string
+	if info.ASN != 0 {
+		asn = append(asn, fmt.Sprintf("AS%d", info.ASN))
+	}
+	if info.ASName != "" {
+		asn = append(asn, info.ASName)
+	}
+	if info.Prefix != "" {
+		asn = append(asn, info.Prefix)
+	}
+
+	var geo []string
+	for _, s := range []string{info.Country, info.Region, info.City} {
+		if s != "" {
+			geo = append(geo, s)
+		}
+	}
+	if len(geo) == 0 && info.Org != "" && info.ASName == "" {
+		geo = append(geo, info.Org)
+	}
+
+	var parts []string
+	if len(asn) > 0 {
+		parts = append(parts, strings.Join(asn, " "))
+	}
+	if len(geo) > 0 {
+		parts = append(parts, strings.Join(geo, " "))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parts, " | ") + "]"
 }
 
 // Summary returns a compact per-hop stat line: TTL, responder, min/avg/max RTT

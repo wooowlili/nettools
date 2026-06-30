@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/baidu/nettools/traceroute"
+	"github.com/baidu/nettools/traceroute/enrich"
 	"github.com/baidu/nettools/version"
 	"github.com/spf13/pflag"
 )
@@ -39,6 +40,9 @@ func main() {
 		parallel     int
 		iface        string
 		localAddr    string
+		asn          bool
+		geo          bool
+		geoToken     string
 	)
 
 	pflag.StringVarP(&protocol, "protocol", "p", "icmp", "Probe protocol: icmp, udp or tcp")
@@ -55,6 +59,9 @@ func main() {
 	pflag.IntVar(&parallel, "parallel", 16, "Max concurrent in-flight probes")
 	pflag.StringVarP(&iface, "interface", "I", "", "Outbound interface (auto-detected if empty)")
 	pflag.StringVarP(&localAddr, "local-addr", "l", "", "Local source IPv4 address (auto-detected if empty)")
+	pflag.BoolVar(&asn, "asn", false, "Annotate each hop with origin ASN/AS-name/BGP prefix via Team Cymru DNS (outbound DNS only)")
+	pflag.BoolVar(&geo, "geo", false, "Annotate each hop with geo/ownership via ipinfo.io (sends hop IPs to a third party)")
+	pflag.StringVar(&geoToken, "geo-token", "", "ipinfo.io API token for --geo (optional; anonymous tier used if empty)")
 
 	showVersion := pflag.BoolP("version", "V", false, "Print version and exit")
 	pflag.Parse()
@@ -114,6 +121,12 @@ func main() {
 		TOS:          tos,
 		Parallel:     parallel,
 		ResolveDNS:   !noDNS,
+	}
+	if asn {
+		cfg.Providers = append(cfg.Providers, enrich.NewCymruProvider())
+	}
+	if geo {
+		cfg.Providers = append(cfg.Providers, enrich.NewIPInfoProvider(geoToken))
 	}
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
