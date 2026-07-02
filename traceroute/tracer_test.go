@@ -98,7 +98,8 @@ func TestFormatInfoEmpty(t *testing.T) {
 	}
 }
 
-func TestResultSummary(t *testing.T) {	r := &Result{
+func TestResultSummary(t *testing.T) {
+	r := &Result{
 		Hops: []Hop{{
 			TTL:   1,
 			Addrs: []net.IP{mustIP("10.0.0.1")},

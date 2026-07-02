@@ -48,7 +48,8 @@ func writeHopLine(b *strings.Builder, h *Hop) {
 		if host != "" {
 			label = strings.TrimSuffix(host, ".")
 		}
-		if ai > 0 {			b.WriteString("    ") // align continuation responders
+		if ai > 0 {
+			b.WriteString("    ") // align continuation responders
 		}
 		fmt.Fprintf(b, "%s (%s)", label, addr.String())
 		if ai < len(h.Infos) {
